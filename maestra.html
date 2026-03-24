@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ITM - Panel de Maestra</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        .loading-spinner {
+            text-align: center;
+            padding: 40px;
+            color: #0a2f6c;
+            font-size: 1.2rem;
+        }
+        .error-message {
+            text-align: center;
+            padding: 20px;
+            color: #c62828;
+            background: #ffebee;
+            border-radius: 10px;
+            margin: 20px;
+        }
+        /* Modal de confirmación de envío */
+        .modal-confirmacion {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-confirmacion.active {
+            display: flex;
+        }
+        .modal-confirmacion-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 550px;
+            width: 90%;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-confirmacion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #d4af37;
+            padding-bottom: 10px;
+        }
+        .modal-confirmacion-header h3 {
+            color: #0a2f6c;
+            font-size: 1.2rem;
+            margin: 0;
+        }
+        .modal-confirmacion-header .close {
+            cursor: pointer;
+            font-size: 24px;
+            color: #999;
+        }
+        .modal-subtitulo {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        .mensaje-preview {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 13px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            line-height: 1.5;
+        }
+        .btn-copiar-mensaje {
+            background: #d4af37;
+            color: #0a2f6c;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn-copiar-mensaje:hover {
+            background: #c4a02e;
+        }
+        .btn-cerrar-modal {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .btn-group-modal {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .copiado-exito {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="btn btn-secondary no-print" onclick="window.location.href='index.html'" style="margin-bottom:15px;">← Salir</button>
+            <h1 id="escuela-nombre">INSTITUTO TERESITA MARTÍN</h1>
+            <p id="titulo-grupo">Cargando...</p>
+            <p id="info-maestra"></p>
+            <p id="escuela-ciclo">Ciclo Escolar 2025-2026</p>
+        </div>
+
+        <div class="tabs no-print">
+            <button class="tab-btn active" onclick="cambiarSeccion('alumnos')">📋 Alumnos</button>
+            <button class="tab-btn" onclick="cambiarSeccion('reportes')">📊 Reportes</button>
+        </div>
+
+        <div id="seccion-alumnos" class="seccion active">
+            <div class="card">
+                <h2>📋 Lista de Alumnos</h2>
+                <div id="lista-alumnos">
+                    <div class="loading-spinner">⏳ Cargando alumnos...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="seccion-reportes" class="seccion">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>📊 Reportes del Grupo</h2>
+                    <button class="btn btn-primary" onclick="imprimirListaGrupo()">🖨️ Imprimir Lista</button>
+                </div>
+                <div id="reportes-contenido">
+                    <div class="loading-spinner">⏳ Cargando reportes...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación para enviar a firma -->
+    <div id="modalConfirmacion" class="modal-confirmacion">
+        <div class="modal-confirmacion-content">
+            <div class="modal-confirmacion-header">
+                <h3>📨 Enviar a Firmar</h3>
+                <span class="close" onclick="cerrarModalConfirmacion()">&times;</span>
+            </div>
+            <p class="modal-subtitulo">Copia el mensaje completo y pégalo en WhatsApp para enviarlo al tutor:</p>
+            <div class="mensaje-preview" id="mensajePreview"></div>
+            <div class="btn-group-modal">
+                <button class="btn-copiar-mensaje" id="btnCopiarMensaje">📋 Copiar mensaje completo</button>
+                <button class="btn-cerrar-modal" onclick="cerrarModalConfirmacion()">Cerrar</button>
+            </div>
+            <div id="copiadoExito" class="copiado-exito">✅ ¡Copiado con éxito! Puedes pegarlo en WhatsApp</div>
+        </div>
+    </div>
+
+    <script>
+        // Obtener parámetros de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const grupoId = urlParams.get("grupo");
+        const maestra = urlParams.get("maestra");
+        const grado = urlParams.get("grado");
+        const grupoLetra = urlParams.get("grupoLetra");
+
+        let alumnosFiltrados = [];
+        let ultimoMensajeGenerado = "";
+
+        // Función para esperar que los datos globales estén listos
+        async function esperarDatosGlobales() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (window.grupos && window.alumnos && window.usuarios && window.evaluaciones && 
+                        window.grupos.length > 0 && window.alumnos.length > 0) {
+                        clearInterval(checkInterval);
+                        console.log("✅ Datos globales listos");
+                        resolve(true);
+                    }
+                }, 200);
+                setTimeout(() => { clearInterval(checkInterval); resolve(false); }, 10000);
+            });
+        }
+
+        async function cargarDatosLocales() {
+            document.getElementById("lista-alumnos").innerHTML = '<div class="loading-spinner">⏳ Cargando alumnos...</div>';
+            document.getElementById("reportes-contenido").innerHTML = '<div class="loading-spinner">⏳ Cargando reportes...</div>';
+            
+            const datosOK = await esperarDatosGlobales();
+            
+            if (!datosOK) {
+                document.getElementById("lista-alumnos").innerHTML = '<div class="error-message">❌ Error al cargar datos. Recarga la página.</div>';
+                return;
+            }
+            
+            alumnosFiltrados = window.alumnos.filter(a => a.grupo_id === grupoId);
+            
+            document.getElementById("escuela-nombre").textContent = window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN";
+            document.getElementById("escuela-ciclo").textContent = `Ciclo Escolar ${window.configuracion?.ciclo || "2025-2026"}`;
+            document.getElementById("titulo-grupo").innerHTML = `${grado} - Grupo ${grupoLetra}`;
+            document.getElementById("info-maestra").innerHTML = `Maestra: ${maestra}`;
+            
+            renderizarAlumnos();
+            renderizarReportes();
+        }
+
+        function obtenerEstadoBoletaLocal(evaluacion) {
+            if (!evaluacion) return { texto: "📝 Sin iniciar", clase: "estado-pendiente" };
+            
+            let firmados = 0;
+            let conContenido = 0;
+            
+            for (let p of window.periodos) {
+                const pd = evaluacion.periodos?.[p.clave];
+                if (pd?.firmada) firmados++;
+                else if (pd) {
+                    const tieneTexto = window.camposEvaluacion.some(c => pd.campos?.[c] && pd.campos[c].trim() !== "") || (pd.recomendaciones && pd.recomendaciones.trim() !== "");
+                    if (tieneTexto) conContenido++;
+                }
+            }
+            
+            if (firmados === 3) return { texto: "✅ Completa", clase: "estado-completa" };
+            if (firmados > 0 || conContenido > 0) return { texto: "⏳ En proceso", clase: "estado-parcial" };
+            return { texto: "📝 Sin iniciar", clase: "estado-pendiente" };
+        }
+
+        async function editarBoleta(alumno) {
+            const evaluacion = window.obtenerEvaluacion(alumno.id);
+            sessionStorage.setItem("alumnoActual", JSON.stringify(alumno));
+            sessionStorage.setItem("evaluacionActual", JSON.stringify(evaluacion));
+            sessionStorage.setItem("returnUrl", "maestra.html");
+            sessionStorage.setItem("returnParams", window.location.search);
+            window.location.href = "evaluar.html";
+        }
+
+        function verBoleta(alumno) {
+            window.open(`boleta.html?alumno=${alumno.id}`, "_blank");
+        }
+
+        // Funciones del modal
+        function mostrarModalConfirmacion(mensaje) {
+            // Convertir saltos de línea a <br> para mostrar en HTML
+            document.getElementById("mensajePreview").innerHTML = mensaje.replace(/\n/g, '<br>');
+            document.getElementById("modalConfirmacion").classList.add("active");
+            document.getElementById("copiadoExito").style.display = "none";
+            ultimoMensajeGenerado = mensaje;
+        }
+
+        function cerrarModalConfirmacion() {
+            document.getElementById("modalConfirmacion").classList.remove("active");
+        }
+
+        async function copiarMensajeCompleto() {
+            try {
+                await navigator.clipboard.writeText(ultimoMensajeGenerado);
+                document.getElementById("copiadoExito").style.display = "block";
+                // Ocultar después de 3 segundos
+                setTimeout(() => {
+                    document.getElementById("copiadoExito").style.display = "none";
+                }, 3000);
+            } catch (err) {
+                alert("No se pudo copiar. Copia manualmente el mensaje.");
+            }
+        }
+
+        async function enviarAFirma(alumno) {
+            console.log("🔵 Enviar a firma - Alumno:", alumno.nombre);
+            
+            const evaluacion = window.obtenerEvaluacion(alumno.id);
+            
+            // Verificar qué periodos tienen contenido y no están firmados
+            let periodosConContenido = [];
+            
+            for (let p of window.periodos) {
+                const pd = evaluacion.periodos?.[p.clave];
+                if (pd) {
+                    const tieneTexto = window.camposEvaluacion.some(c => pd.campos?.[c] && pd.campos[c].trim() !== "") || (pd.recomendaciones && pd.recomendaciones.trim() !== "");
+                    if (tieneTexto && !pd.firmada) {
+                        periodosConContenido.push(p);
+                    }
+                }
+            }
+            
+            if (periodosConContenido.length === 0) {
+                window.mostrarNotificacion("⚠️ No hay observaciones. Completa al menos un periodo antes de enviar a firmar.", "error");
+                return;
+            }
+            
+            // Mostrar prompt para seleccionar periodo
+            let opcionesTexto = periodosConContenido.map((p, i) => `${i+1}. ${p.nombre}`).join("\n");
+            let mensajePrompt = `¿Qué periodo quieres enviar a firmar?\n\n${opcionesTexto}\n\nEscribe el número (1-${periodosConContenido.length}):`;
+            
+            let opcion = prompt(mensajePrompt, "1");
+            
+            if (opcion === null) {
+                window.mostrarNotificacion("Envío cancelado", "error");
+                return;
+            }
+            
+            let idx = parseInt(opcion) - 1;
+            if (isNaN(idx) || idx < 0 || idx >= periodosConContenido.length) {
+                window.mostrarNotificacion("Opción no válida", "error");
+                return;
+            }
+            
+            let periodoSeleccionado = periodosConContenido[idx];
+            let periodoClave = periodoSeleccionado.clave;
+            let periodoNombre = periodoSeleccionado.nombre;
+            
+            const periodoData = evaluacion.periodos[periodoClave];
+            
+            if (periodoData.firmada) {
+                window.mostrarNotificacion(`✅ El periodo ${periodoNombre} ya está firmado`, "error");
+                return;
+            }
+            
+            // Generar token
+            const token = window.generarId();
+            periodoData.token = token;
+            periodoData.enviada = true;
+            periodoData.fechaEnvio = new Date().toISOString();
+            
+            await window.guardarEvaluacion(evaluacion);
+            
+            const baseUrl = window.location.origin + window.location.pathname.replace("maestra.html", "");
+            const enlace = `${baseUrl}boleta.html?token=${token}`;
+            
+            const mensaje = `📋 *REPORTE DE EVALUACIÓN - ${alumno.nombre}*
+
+🏫 ${window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN"}
+📅 Ciclo Escolar ${window.configuracion?.ciclo || "2025-2026"}
+📌 Periodo: ${periodoNombre}
+
+La maestra ha generado el reporte de evaluación.
+
+✍️ Para firmar digitalmente, ingrese aquí:
+${enlace}
+
+Este enlace expira en 7 días.`;
+            
+            // Mostrar modal con el mensaje completo
+            mostrarModalConfirmacion(mensaje);
+            
+            // Actualizar la vista
+            renderizarAlumnos();
+        }
+
+        function renderizarAlumnos() {
+            const container = document.getElementById("lista-alumnos");
+            if (!container) return;
+            
+            if (!alumnosFiltrados || alumnosFiltrados.length === 0) {
+                container.innerHTML = '<div class="card" style="text-align:center; color:#666;">📭 No hay alumnos en este grupo</div>';
+                return;
+            }
+            
+            container.innerHTML = "";
+            
+            alumnosFiltrados.forEach(alumno => {
+                const evaluacion = window.evaluaciones.find(e => e.alumno_id === alumno.id);
+                const estado = obtenerEstadoBoletaLocal(evaluacion);
+                
+                const div = document.createElement("div");
+                div.className = "alumno-item";
+                div.innerHTML = `
+                    <div class="alumno-info">
+                        <h3>${alumno.nombre}</h3>
+                        <p>📖 CURP: ${alumno.curp || "No registrada"} | 👩‍👧 Tutor: ${alumno.tutor} | 📞 ${alumno.telefono || "Sin teléfono"}</p>
+                    </div>
+                    <div class="estado-boleta">
+                        <span class="estado-badge ${estado.clase}">${estado.texto}</span>
+                        <button class="btn btn-primary btn-sm" onclick='editarBoleta(${JSON.stringify(alumno)})'>✏️ Evaluar</button>
+                        <button class="btn btn-secondary btn-sm" onclick='verBoleta(${JSON.stringify(alumno)})'>👁️ Ver Boleta</button>
+                        <button class="btn btn-success btn-sm" onclick='enviarAFirma(${JSON.stringify(alumno)})'>📨 Enviar a Firmar</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderizarReportes() {
+            const container = document.getElementById("reportes-contenido");
+            if (!container) return;
+            
+            if (!alumnosFiltrados || alumnosFiltrados.length === 0) {
+                container.innerHTML = '<div class="card" style="text-align:center;">No hay alumnos en este grupo</div>';
+                return;
+            }
+            
+            let resumen = `<div class="grid-2">`;
+            window.periodos.forEach(p => {
+                let firmados = 0;
+                alumnosFiltrados.forEach(alumno => {
+                    const evalData = window.evaluaciones.find(e => e.alumno_id === alumno.id);
+                    if (evalData && evalData.periodos?.[p.clave]?.firmada) firmados++;
+                });
+                resumen += `
+                    <div class="card" style="text-align:center;">
+                        <h3>${p.nombre}</h3>
+                        <p style="font-size:1.5rem; color:#0a2f6c;">${firmados}/${alumnosFiltrados.length}</p>
+                        <p>boletas firmadas</p>
+                    </div>
+                `;
+            });
+            resumen += `</div>`;
+            
+            resumen += `
+                <div class="card">
+                    <h3>📋 Lista de Alumnos</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead><tr style="background:#f5f5f5;"><th>Alumno</th><th>CURP</th><th>Tutor</th><th>Teléfono</th><th>Estado</th>  </thead>
+                            <tbody>
+                                ${alumnosFiltrados.map(alumno => {
+                                    const evalData = window.evaluaciones.find(e => e.alumno_id === alumno.id);
+                                    const estado = obtenerEstadoBoletaLocal(evalData);
+                                    return `   <tr><td>${alumno.nombre}</td><td>${alumno.curp || "-"}</td><td>${alumno.tutor}</td><td>${alumno.telefono || "-"}</td><td><span class="estado-badge ${estado.clase}">${estado.texto}</span></td></tr>`;
+                                }).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = resumen;
+        }
+
+        function imprimirListaGrupo() {
+            const ventana = window.open("", "_blank");
+            let tablaHtml = `
+                <div style="text-align:center; margin-bottom:30px;">
+                    <h1>${window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN"}</h1>
+                    <p>CLAVE: ${window.configuracion?.clave || "20PJN02791"} | CICLO ESCOLAR ${window.configuracion?.ciclo || "2025-2026"}</p>
+                    <hr>
+                    <h2>Lista de Alumnos - ${grado} Grupo ${grupoLetra}</h2>
+                    <p>Maestra: ${maestra}</p>
+                    <p>Fecha: ${new Date().toLocaleDateString()}</p>
+                </div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:#fef5e8;"><th>#</th><th>Alumno</th><th>CURP</th><th>Tutor</th><th>Teléfono</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        ${alumnosFiltrados.map((alumno, idx) => {
+                            const evalData = window.evaluaciones.find(e => e.alumno_id === alumno.id);
+                            const estado = obtenerEstadoBoletaLocal(evalData);
+                            return `<tr><td>${idx+1}</td><td>${alumno.nombre}</td><td>${alumno.curp || "-"}</td><td>${alumno.tutor}</td><td>${alumno.telefono || "-"}</td><td>${estado.texto}</td></tr>`;
+                        }).join("")}
+                    </tbody>
+                </table>
+            `;
+            
+            ventana.document.write(`
+                <!DOCTYPE html>
+                <html><head><title>Lista de Alumnos</title>
+                <style>body{font-family:Arial;padding:40px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:8px;text-align:left;} th{background:#fef5e8;}</style>
+                </head><body>${tablaHtml}<div style="text-align:center; margin-top:30px;"><button onclick="window.print()">🖨️ Imprimir</button></div></body></html>
+            `);
+            ventana.document.close();
+        }
+
+        function cambiarSeccion(seccion) {
+            document.querySelectorAll('.seccion').forEach(s => s.classList.remove('active'));
+            document.getElementById(`seccion-${seccion}`).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            if (seccion === 'reportes') renderizarReportes();
+        }
+
+        // Configurar botón copiar mensaje del modal
+        document.getElementById("btnCopiarMensaje").addEventListener("click", copiarMensajeCompleto);
+
+        // Iniciar carga
+        cargarDatosLocales();
+        
+        // Exponer funciones globales
+        window.editarBoleta = editarBoleta;
+        window.verBoleta = verBoleta;
+        window.enviarAFirma = enviarAFirma;
+        window.imprimirListaGrupo = imprimirListaGrupo;
+        window.cambiarSeccion = cambiarSeccion;
+        window.cerrarModalConfirmacion = cerrarModalConfirmacion;
+    </script>
+</body>
+</html>
