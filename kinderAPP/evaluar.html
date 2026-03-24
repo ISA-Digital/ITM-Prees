@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ITM - Evaluar Alumno</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        .periodo-block {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 1px solid #e0e0e0;
+            overflow: hidden;
+        }
+        .periodo-header {
+            background: #f0e8d8;
+            padding: 12px 15px;
+            font-weight: bold;
+            font-size: 1rem;
+            color: #0a2f6c;
+            border-bottom: 2px solid #d4af37;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .periodo-body {
+            padding: 20px;
+        }
+        .seccion-campos {
+            margin-bottom: 20px;
+        }
+        .seccion-titulo {
+            background: #e8e0d0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-weight: bold;
+            color: #0a2f6c;
+            font-size: 0.9rem;
+        }
+        .campo-row {
+            display: flex;
+            border-bottom: 1px solid #eee;
+            padding: 12px 0;
+        }
+        .campo-label {
+            width: 280px;
+            font-weight: 500;
+            color: #555;
+        }
+        .campo-input {
+            flex: 1;
+        }
+        .campo-input textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        .recomendaciones-area {
+            background: #fff8f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #ffe0b5;
+        }
+        .recomendaciones-area textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        @media (max-width: 768px) {
+            .campo-row { flex-direction: column; }
+            .campo-label { width: 100%; margin-bottom: 8px; }
+        }
+        .firma-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-firmada { background: #28a745; color: white; }
+        .status-enviada { background: #ffc107; color: #333; }
+        .status-pendiente { background: #ff9800; color: white; }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .info-alumno {
+            background: #f0e8d8;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-info">
+                <button class="btn btn-secondary no-print" id="btnVolver" style="margin-bottom:0;">← Volver</button>
+                <h1 style="margin:0;">INSTITUTO TERESITA MARTÍN</h1>
+                <p style="margin:0;">Evaluación - Ciclo Escolar <span id="escuela-ciclo">2025-2026</span></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="info-alumno" id="info-alumno"></div>
+            <form id="form-evaluacion">
+                <div id="periodos-container"></div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="guardarTodo()">💾 Guardar Todo</button>
+                    <button type="button" class="btn btn-primary" id="btnCerrar">Cerrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const alumno = JSON.parse(sessionStorage.getItem("alumnoActual") || "{}");
+        let evaluacion = JSON.parse(sessionStorage.getItem("evaluacionActual") || "{}");
+        const returnUrl = sessionStorage.getItem("returnUrl") || "maestra.html";
+        const returnParams = sessionStorage.getItem("returnParams") || "";
+
+        document.getElementById("escuela-ciclo").textContent = configuracion.ciclo || "2025-2026";
+
+        function cerrar() {
+            window.location.href = returnUrl + returnParams;
+        }
+
+        document.getElementById("btnVolver").onclick = cerrar;
+        document.getElementById("btnCerrar").onclick = cerrar;
+
+        async function guardarTodo() {
+            periodos.forEach(periodo => {
+                const periodoData = evaluacion.periodos[periodo.clave];
+                if (!periodoData) return;
+                
+                camposEvaluacion.forEach(campo => {
+                    const campoId = `${periodo.clave}-${campo.replace(/\s/g, '')}`;
+                    const val = document.getElementById(campoId)?.value || "";
+                    periodoData.campos[campo] = val;
+                });
+                
+                const recId = `rec-${periodo.clave}`;
+                const recVal = document.getElementById(recId)?.value || "";
+                periodoData.recomendaciones = recVal;
+            });
+            
+            await guardarEvaluacion(evaluacion);
+            mostrarNotificacion("✅ Todos los periodos guardados", "success");
+        }
+
+        function renderizarFormulario() {
+            const grupo = grupos.find(g => g.id === alumno.grupo_id);
+            document.getElementById("info-alumno").innerHTML = `
+                <strong>👧 Alumno:</strong> ${alumno.nombre}<br>
+                <strong>📖 CURP:</strong> ${alumno.curp || "No registrada"}<br>
+                <strong>📚 Grado y Grupo:</strong> ${alumno.grado} - ${grupo ? grupo.grupo : ""}<br>
+                <strong>👩‍👧 Tutor:</strong> ${alumno.tutor} | 📞 ${alumno.telefono || "Sin teléfono"}<br>
+                <strong>📅 Fecha de evaluación:</strong> ${new Date().toLocaleDateString()}
+            `;
+
+            const container = document.getElementById("periodos-container");
+            container.innerHTML = "";
+
+            periodos.forEach(periodo => {
+                const periodoData = evaluacion.periodos[periodo.clave];
+                if (!periodoData) return;
+                
+                let statusHtml = "";
+                if (periodoData.firmada) {
+                    statusHtml = `<span class="firma-status status-firmada">✅ Firmado - ${periodoData.firmaNombre} - ${new Date(periodoData.fechaFirma).toLocaleDateString()}</span>`;
+                } else if (periodoData.enviada) {
+                    statusHtml = `<span class="firma-status status-enviada">📨 Enviado a firmar - ${new Date(periodoData.fechaEnvio).toLocaleDateString()}</span>`;
+                } else {
+                    statusHtml = `<span class="firma-status status-pendiente">⏳ Pendiente de firma</span>`;
+                }
+
+                let camposAcademicosHtml = "";
+                camposAcademicos.forEach(campo => {
+                    const valor = periodoData.campos[campo] || "";
+                    const campoId = `${periodo.clave}-${campo.replace(/\s/g, '')}`;
+                    camposAcademicosHtml += `
+                        <div class="campo-row">
+                            <div class="campo-label">${campo}</div>
+                            <div class="campo-input">
+                                <textarea id="${campoId}" rows="2" ${periodoData.firmada ? 'disabled' : ''} placeholder="Escribe las observaciones...">${valor}</textarea>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                let areasDesarrolloHtml = "";
+                areasDesarrollo.forEach(campo => {
+                    const valor = periodoData.campos[campo] || "";
+                    const campoId = `${periodo.clave}-${campo.replace(/\s/g, '')}`;
+                    areasDesarrolloHtml += `
+                        <div class="campo-row">
+                            <div class="campo-label">${campo}</div>
+                            <div class="campo-input">
+                                <textarea id="${campoId}" rows="2" ${periodoData.firmada ? 'disabled' : ''} placeholder="Escribe las observaciones...">${valor}</textarea>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                let autonomiaHtml = "";
+                autonomiaCurricular.forEach(campo => {
+                    const valor = periodoData.campos[campo] || "";
+                    const campoId = `${periodo.clave}-${campo.replace(/\s/g, '')}`;
+                    autonomiaHtml += `
+                        <div class="campo-row">
+                            <div class="campo-label">${campo}</div>
+                            <div class="campo-input">
+                                <textarea id="${campoId}" rows="2" ${periodoData.firmada ? 'disabled' : ''} placeholder="Escribe las observaciones...">${valor}</textarea>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                const recValor = periodoData.recomendaciones || "";
+                const recDisabled = periodoData.firmada ? 'disabled' : '';
+
+                const block = document.createElement("div");
+                block.className = "periodo-block";
+                block.innerHTML = `
+                    <div class="periodo-header">
+                        ${periodo.nombre} ${statusHtml}
+                    </div>
+                    <div class="periodo-body">
+                        <div class="seccion-campos">
+                            <div class="seccion-titulo">📚 CAMPOS DE FORMACIÓN ACADÉMICA</div>
+                            ${camposAcademicosHtml}
+                        </div>
+                        <div class="seccion-campos">
+                            <div class="seccion-titulo">🎨 ÁREAS DE DESARROLLO PERSONAL Y SOCIAL</div>
+                            ${areasDesarrolloHtml}
+                        </div>
+                        <div class="seccion-campos">
+                            <div class="seccion-titulo">⚙️ AUTONOMÍA CURRICULAR</div>
+                            ${autonomiaHtml}
+                        </div>
+                        <div class="recomendaciones-area">
+                            <label><strong>💡 RECOMENDACIONES</strong></label>
+                            <textarea id="rec-${periodo.clave}" rows="3" ${recDisabled} placeholder="Escribe las recomendaciones generales para este periodo...">${recValor}</textarea>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(block);
+            });
+        }
+
+        if (!alumno.id) {
+            alert("No se encontró información del alumno");
+            window.location.href = returnUrl + returnParams;
+        } else if (!evaluacion.id) {
+            alert("No se encontró la evaluación");
+            window.location.href = returnUrl + returnParams;
+        } else {
+            renderizarFormulario();
+        }
+
+        window.guardarTodo = guardarTodo;
+    </script>
+</body>
+</html>

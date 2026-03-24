@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ITM - Sistema de Evaluación</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0a2f6c, #1e4a8a);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-card {
+            max-width: 400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .logo h2 {
+            color: #0a2f6c;
+            font-size: 1.3rem;
+        }
+        .logo p {
+            color: #666;
+            font-size: 0.8rem;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #0a2f6c;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card card">
+        <div class="logo">
+            <h2 id="escuela-nombre">INSTITUTO TERESITA MARTÍN</h2>
+            <p id="escuela-clave">CLAVE: 20PJN02791</p>
+        </div>
+        <h1 style="text-align:center; font-size:1.2rem;">Sistema de Evaluación</h1>
+        <p id="escuela-ciclo" style="text-align:center; color:#666; margin-bottom:20px;">Ciclo Escolar 2025-2026</p>
+
+        <div id="mensaje-error" class="error"></div>
+        <div id="loading-message" class="loading">Cargando sistema...</div>
+
+        <form id="form-acceso" onsubmit="event.preventDefault(); acceder();" style="display: none;">
+            <div class="form-group">
+                <label>👩‍🏫 Selecciona tu rol</label>
+                <select id="rol" required>
+                    <option value="">-- Seleccionar --</option>
+                    <option value="maestra">Maestra - Acceso a mi grupo</option>
+                    <option value="directora">Directora - Administración</option>
+                </select>
+            </div>
+
+            <div id="grupo-container" style="display: none;">
+                <div class="form-group">
+                    <label>📚 Selecciona tu grupo</label>
+                    <select id="grupo-select"></select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🔑 Contraseña</label>
+                <input type="password" id="password" placeholder="Ingresa tu contraseña" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;">Ingresar</button>
+        </form>
+
+        <hr style="margin: 20px 0; display: none;" id="hr-div">
+        <div style="text-align: center; font-size: 12px; color: #999; display: none;" id="info-div">
+            📱 Para tutores: recibe el enlace por WhatsApp<br>
+            ✍️ Firma digital desde tu celular
+        </div>
+    </div>
+
+    <script>
+        // Esperar a que config.js termine de cargar los datos
+        async function esperarCarga() {
+            console.log("Esperando carga de datos...");
+            
+            // Esperar hasta que los datos estén cargados
+            while (typeof window.grupos === 'undefined' || window.grupos.length === 0) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log("Esperando grupos...", window.grupos?.length);
+            }
+            
+            console.log("✅ Datos cargados:", window.grupos.length, "grupos,", window.alumnos.length, "alumnos");
+            
+            // Actualizar UI
+            document.getElementById("escuela-nombre").textContent = window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN";
+            document.getElementById("escuela-clave").textContent = `CLAVE: ${window.configuracion?.clave || "20PJN02791"}`;
+            document.getElementById("escuela-ciclo").textContent = `Ciclo Escolar ${window.configuracion?.ciclo || "2025-2026"}`;
+            
+            // Ocultar loading, mostrar formulario
+            document.getElementById("loading-message").style.display = "none";
+            document.getElementById("form-acceso").style.display = "block";
+            document.getElementById("hr-div").style.display = "block";
+            document.getElementById("info-div").style.display = "block";
+        }
+
+        function actualizarSelectGrupos() {
+            const select = document.getElementById("grupo-select");
+            select.innerHTML = '<option value="">-- Selecciona tu grupo --</option>';
+            window.grupos.forEach(g => {
+                select.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`;
+            });
+        }
+
+        function acceder() {
+            const rol = document.getElementById("rol").value;
+            const password = document.getElementById("password").value;
+            const grupoId = document.getElementById("grupo-select")?.value;
+            const errorDiv = document.getElementById("mensaje-error");
+            
+            errorDiv.style.display = "none";
+            
+            if (!rol) {
+                errorDiv.textContent = "Selecciona un rol";
+                errorDiv.style.display = "block";
+                return;
+            }
+            
+            if (rol === "directora") {
+                const usuario = window.usuarios.find(u => u.rol === "directora" && u.password === password);
+                if (usuario) {
+                    sessionStorage.setItem("usuarioActual", JSON.stringify(usuario));
+                    window.location.href = "admin.html";
+                } else {
+                    errorDiv.textContent = "Contraseña incorrecta";
+                    errorDiv.style.display = "block";
+                }
+                return;
+            }
+            
+            if (rol === "maestra") {
+                if (!grupoId) {
+                    errorDiv.textContent = "Selecciona tu grupo";
+                    errorDiv.style.display = "block";
+                    return;
+                }
+                
+                const grupo = window.grupos.find(g => g.id === grupoId);
+                const usuario = window.usuarios.find(u => u.rol === "maestra" && u.grupo_id === grupoId && u.password === password);
+                
+                if (usuario && grupo) {
+                    sessionStorage.setItem("usuarioActual", JSON.stringify(usuario));
+                    sessionStorage.setItem("grupoActual", JSON.stringify(grupo));
+                    window.location.href = `maestra.html?grupo=${grupoId}&maestra=${encodeURIComponent(usuario.nombre)}&grado=${encodeURIComponent(grupo.grado)}&grupoLetra=${grupo.grupo}`;
+                } else {
+                    errorDiv.textContent = "Contraseña incorrecta para este grupo";
+                    errorDiv.style.display = "block";
+                }
+            }
+        }
+
+        document.getElementById("rol").addEventListener("change", function() {
+            const grupoContainer = document.getElementById("grupo-container");
+            if (this.value === "maestra") {
+                grupoContainer.style.display = "block";
+                actualizarSelectGrupos();
+            } else if (this.value === "directora") {
+                grupoContainer.style.display = "none";
+            } else {
+                grupoContainer.style.display = "none";
+            }
+        });
+
+        // Iniciar
+        esperarCarga();
+    </script>
+</body>
+</html>

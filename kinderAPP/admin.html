@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ITM - Administración</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        .header { background: linear-gradient(135deg, #0a2f6c, #1e4a8a); }
+        .btn-primary, .btn-success { background: #d4af37; color: #0a2f6c; font-weight: bold; }
+        .btn-primary:hover, .btn-success:hover { background: #c4a02e; }
+        .tab-btn.active { background: #d4af37; color: #0a2f6c; font-weight: bold; }
+        .card h2 { color: #0a2f6c; }
+        .modal-header h3 { color: #0a2f6c; }
+        .logo-preview { max-width: 80px; max-height: 80px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; padding: 5px; }
+        .header-logo { max-height: 60px; margin-right: 15px; }
+        .header-content { display: flex; align-items: center; gap: 15px; }
+        .loading-spinner { text-align: center; padding: 40px; color: #0a2f6c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="btn btn-secondary no-print" onclick="window.location.href='index.html'" style="margin-bottom:15px;">← Salir</button>
+            <div class="header-content">
+                <img id="header-logo" class="header-logo" src="" alt="Logo" style="display: none;">
+                <div>
+                    <h1 id="header-nombre">INSTITUTO TERESITA MARTÍN</h1>
+                    <p>Panel de Administración - Directora</p>
+                    <p id="header-ciclo">Ciclo Escolar 2025-2026</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs no-print">
+            <button class="tab-btn active" onclick="cambiarSeccion('configuracion')">⚙️ Configuración</button>
+            <button class="tab-btn" onclick="cambiarSeccion('alumnos')">📋 Alumnos</button>
+            <button class="tab-btn" onclick="cambiarSeccion('grupos')">📚 Grupos</button>
+            <button class="tab-btn" onclick="cambiarSeccion('maestras')">👩‍🏫 Maestras</button>
+            <button class="tab-btn" onclick="cambiarSeccion('boletas')">📄 Boletas</button>
+            <button class="tab-btn" onclick="cambiarSeccion('reportes')">📊 Reportes</button>
+        </div>
+
+        <!-- Configuración -->
+        <div id="seccion-configuracion" class="seccion active">
+            <div class="card">
+                <h2>⚙️ Configuración de la Escuela</h2>
+                <form id="form-configuracion" onsubmit="event.preventDefault(); guardarConfiguracion();">
+                    <div class="form-group"><label>Nombre de la Escuela</label><input type="text" id="config-nombre" required></div>
+                    <div class="form-group"><label>CCT</label><input type="text" id="config-clave" required></div>
+                    <div class="form-group"><label>Ciclo Escolar</label><input type="text" id="config-ciclo" placeholder="2025-2026" required></div>
+                    <div class="form-group"><label>Nombre de la Directora</label><input type="text" id="config-director"></div>
+                    <div class="form-group"><label>Logo de la Escuela</label><input type="text" id="config-logo" placeholder="URL o subir archivo"><input type="file" id="logo-file" accept="image/*" style="margin-top:10px;"><div id="logo-preview-container"></div></div>
+                    <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Alumnos -->
+        <div id="seccion-alumnos" class="seccion">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h2>📋 Alumnos</h2>
+                    <button class="btn btn-primary" onclick="abrirModalAlumno()">+ Nuevo Alumno</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </tr></thead>
+                        <tbody id="tabla-alumnos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grupos -->
+        <div id="seccion-grupos" class="seccion">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h2>📚 Grupos</h2>
+                    <button class="btn btn-primary" onclick="abrirModalGrupo()">+ Nuevo Grupo</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </tr></thead>
+                        <tbody id="tabla-grupos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maestras -->
+        <div id="seccion-maestras" class="seccion">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h2>👩‍🏫 Maestras</h2>
+                    <button class="btn btn-primary" onclick="abrirModalMaestra()">+ Nueva Maestra</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </tr></thead>
+                        <tbody id="tabla-maestras"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Boletas -->
+        <div id="seccion-boletas" class="seccion">
+            <div class="card">
+                <h2>📄 Boletas de Evaluación</h2>
+                <div class="form-group">
+                    <label>Selecciona un alumno</label>
+                    <select id="select-alumno-boleta" class="form-control"></select>
+                    <button class="btn btn-primary" onclick="verBoletaSeleccionada()" style="margin-top:10px;">👁️ Ver Boleta</button>
+                </div>
+                <hr>
+                <h3>Buscar por grupo</h3>
+                <div class="form-group">
+                    <label>Grupo</label>
+                    <select id="select-grupo-boletas" class="form-control" onchange="cargarAlumnosPorGrupo()"></select>
+                </div>
+                <div id="lista-boletas-grupo"></div>
+            </div>
+        </div>
+
+        <!-- Reportes -->
+        <div id="seccion-reportes" class="seccion">
+            <div class="card">
+                <h2>📊 Reportes Generales</h2>
+                <div id="reportes-contenido"></div>
+                <div style="margin-top:20px;">
+                    <button class="btn btn-primary" onclick="imprimirReporteGeneral()">🖨️ Reporte General</button>
+                    <button class="btn btn-secondary" onclick="imprimirReportePorGrupos()">📚 Reporte por Grupos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="modal-alumno" class="modal"><div class="modal-content"><div class="modal-header"><h3 id="modal-alumno-titulo">Nuevo Alumno</h3><span class="close-modal" onclick="cerrarModalAlumno()">&times;</span></div>
+    <form id="form-alumno" onsubmit="event.preventDefault(); guardarAlumno();"><input type="hidden" id="alumno-id">
+    <div class="form-group"><label>Nombre completo *</label><input type="text" id="alumno-nombre" required></div>
+    <div class="form-group"><label>CURP</label><input type="text" id="alumno-curp" maxlength="18"></div>
+    <div class="form-group"><label>Grado *</label><select id="alumno-grado"><option>1° Preescolar</option><option>2° Preescolar</option><option>3° Preescolar</option></select></div>
+    <div class="form-group"><label>Grupo</label><select id="alumno-grupo"></select></div>
+    <div class="form-group"><label>Nombre del Tutor *</label><input type="text" id="alumno-tutor" required></div>
+    <div class="form-group"><label>Teléfono del Tutor</label><input type="tel" id="alumno-telefono"></div>
+    <div class="form-group"><label>Email del Tutor</label><input type="email" id="alumno-email"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="cerrarModalAlumno()">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div>
+
+    <div id="modal-grupo" class="modal"><div class="modal-content"><div class="modal-header"><h3 id="modal-grupo-titulo">Nuevo Grupo</h3><span class="close-modal" onclick="cerrarModalGrupo()">&times;</span></div>
+    <form id="form-grupo" onsubmit="event.preventDefault(); guardarGrupo();"><input type="hidden" id="grupo-id">
+    <div class="form-group"><label>Grado *</label><select id="grupo-grado"><option>1° Preescolar</option><option>2° Preescolar</option><option>3° Preescolar</option></select></div>
+    <div class="form-group"><label>Grupo *</label><input type="text" id="grupo-nombre" placeholder="A, B, C" maxlength="5" required></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="cerrarModalGrupo()">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div>
+
+    <div id="modal-maestra" class="modal"><div class="modal-content"><div class="modal-header"><h3 id="modal-maestra-titulo">Nueva Maestra</h3><span class="close-modal" onclick="cerrarModalMaestra()">&times;</span></div>
+    <form id="form-maestra" onsubmit="event.preventDefault(); guardarMaestra();"><input type="hidden" id="maestra-id">
+    <div class="form-group"><label>Nombre completo *</label><input type="text" id="maestra-nombre" required></div>
+    <div class="form-group"><label>Grupo asignado</label><select id="maestra-grupo"></select></div>
+    <div class="form-group"><label>Email</label><input type="email" id="maestra-email"></div>
+    <div class="form-group"><label>Contraseña *</label><input type="password" id="maestra-password" value="1234" required></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="cerrarModalMaestra()">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div>
+
+    <div id="modal-cambiar-pass" class="modal"><div class="modal-content"><div class="modal-header"><h3>Cambiar Contraseña</h3><span class="close-modal" onclick="cerrarModalCambiarPass()">&times;</span></div>
+    <form id="form-cambiar-pass" onsubmit="event.preventDefault(); guardarNuevaPassword();"><input type="hidden" id="cambiar-maestra-id">
+    <div class="form-group"><label>Nueva Contraseña</label><input type="password" id="nueva-password" required></div>
+    <div class="form-group"><label>Confirmar</label><input type="password" id="confirmar-password" required></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="cerrarModalCambiarPass()">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div>
+
+    <script>
+        let maestraIdParaPass = null;
+        let datosListos = false;
+
+        async function esperarDatosGlobales() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (window.grupos && window.alumnos && window.usuarios && window.evaluaciones && 
+                        window.grupos.length > 0 && window.alumnos.length > 0) {
+                        clearInterval(checkInterval);
+                        console.log("✅ Datos globales listos");
+                        resolve(true);
+                    }
+                }, 200);
+                setTimeout(() => { clearInterval(checkInterval); resolve(false); }, 10000);
+            });
+        }
+
+        function actualizarLogo() { 
+            let img = document.getElementById("header-logo"); 
+            if (window.configuracion?.logo && window.configuracion.logo !== "") { 
+                img.src = window.configuracion.logo; 
+                img.style.display = "block"; 
+            } else { 
+                img.style.display = "none"; 
+            } 
+        }
+        
+        async function guardarConfiguracion() {
+            const nuevaConfig = {
+                nombre: document.getElementById("config-nombre").value,
+                clave: document.getElementById("config-clave").value,
+                ciclo: document.getElementById("config-ciclo").value,
+                director: document.getElementById("config-director").value,
+                logo: document.getElementById("config-logo").value
+            };
+            await window.actualizarConfiguracion(nuevaConfig);
+            document.getElementById("header-nombre").textContent = window.configuracion.nombre;
+            document.getElementById("header-ciclo").textContent = `Ciclo Escolar ${window.configuracion.ciclo}`;
+            actualizarLogo();
+            window.mostrarNotificacion("Configuración guardada", "success");
+        }
+
+        document.getElementById("logo-file").addEventListener("change", function(e) {
+            if (e.target.files[0]) {
+                let reader = new FileReader();
+                reader.onload = function(ev) {
+                    document.getElementById("config-logo").value = ev.target.result;
+                    document.getElementById("logo-preview-container").innerHTML = `<img src="${ev.target.result}" class="logo-preview">`;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        // ========== ALUMNOS ==========
+        function renderizarAlumnos() {
+            let tbody = document.getElementById("tabla-alumnos");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            window.alumnos.forEach(a => {
+                let g = window.grupos.find(g => g.id === a.grupo_id);
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${a.nombre}</td><td>${a.curp || "-"}</td><td>${a.grado}</td>
+                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td><td>${a.tutor}</td><td>${a.telefono || "-"}</td>
+                        <td><button class="btn btn-primary btn-sm" onclick="editarAlumno('${a.id}')">✏️</button>
+                        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno('${a.id}')">🗑️</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function actualizarSelectGrupos(selectId) { 
+            let select = document.getElementById(selectId); 
+            select.innerHTML = '<option value="">Sin grupo</option>'; 
+            window.grupos.forEach(g => { select.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; }); 
+        }
+
+        function abrirModalAlumno(id) { 
+            actualizarSelectGrupos("alumno-grupo"); 
+            if (id) { 
+                let a = window.alumnos.find(a => a.id === id); 
+                if (a) { 
+                    document.getElementById("modal-alumno-titulo").textContent = "Editar Alumno"; 
+                    document.getElementById("alumno-id").value = a.id; 
+                    document.getElementById("alumno-nombre").value = a.nombre; 
+                    document.getElementById("alumno-curp").value = a.curp || ""; 
+                    document.getElementById("alumno-grado").value = a.grado; 
+                    document.getElementById("alumno-grupo").value = a.grupo_id || ""; 
+                    document.getElementById("alumno-tutor").value = a.tutor; 
+                    document.getElementById("alumno-telefono").value = a.telefono || ""; 
+                    document.getElementById("alumno-email").value = a.email || ""; 
+                } 
+            } else { 
+                document.getElementById("modal-alumno-titulo").textContent = "Nuevo Alumno"; 
+                document.getElementById("form-alumno").reset(); 
+                document.getElementById("alumno-id").value = ""; 
+            } 
+            document.getElementById("modal-alumno").classList.add("active"); 
+        }
+
+        function cerrarModalAlumno() { document.getElementById("modal-alumno").classList.remove("active"); }
+
+        async function guardarAlumno() { 
+            let id = document.getElementById("alumno-id").value; 
+            let datos = { 
+                id: id || window.generarId(),
+                nombre: document.getElementById("alumno-nombre").value, 
+                curp: document.getElementById("alumno-curp").value, 
+                grado: document.getElementById("alumno-grado").value, 
+                grupo_id: document.getElementById("alumno-grupo").value || null, 
+                tutor: document.getElementById("alumno-tutor").value, 
+                telefono: document.getElementById("alumno-telefono").value, 
+                email: document.getElementById("alumno-email").value 
+            }; 
+            await window.guardarAlumno(datos);
+            cerrarModalAlumno(); 
+            renderizarAlumnos(); 
+            window.mostrarNotificacion("Alumno guardado", "success"); 
+        }
+
+        function editarAlumno(id) { abrirModalAlumno(id); }
+        async function eliminarAlumno(id) { if (confirm("¿Eliminar este alumno?")) { await window.eliminarAlumno(id); renderizarAlumnos(); window.mostrarNotificacion("Alumno eliminado", "success"); } }
+
+        // ========== GRUPOS ==========
+        function renderizarGrupos() {
+            let tbody = document.getElementById("tabla-grupos");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            window.grupos.forEach(g => {
+                let count = window.alumnos.filter(a => a.grupo_id === g.id).length;
+                tbody.innerHTML += `<tr><td>${g.grado}</td><td>${g.grupo}</td><td>${count}</td>
+                    <td><button class="btn btn-primary btn-sm" onclick="editarGrupo('${g.id}')">✏️</button>
+                    <button class="btn btn-danger btn-sm" onclick="eliminarGrupo('${g.id}')">🗑️</button></td></tr>`;
+            });
+        }
+
+        function abrirModalGrupo(id) { 
+            if (id) { 
+                let g = window.grupos.find(g => g.id === id); 
+                if (g) { 
+                    document.getElementById("modal-grupo-titulo").textContent = "Editar Grupo"; 
+                    document.getElementById("grupo-id").value = g.id; 
+                    document.getElementById("grupo-grado").value = g.grado; 
+                    document.getElementById("grupo-nombre").value = g.grupo; 
+                } 
+            } else { 
+                document.getElementById("modal-grupo-titulo").textContent = "Nuevo Grupo"; 
+                document.getElementById("form-grupo").reset(); 
+                document.getElementById("grupo-id").value = ""; 
+            } 
+            document.getElementById("modal-grupo").classList.add("active"); 
+        }
+
+        function cerrarModalGrupo() { document.getElementById("modal-grupo").classList.remove("active"); }
+
+        async function guardarGrupo() { 
+            let id = document.getElementById("grupo-id").value; 
+            let datos = { id: id || window.generarId(), grado: document.getElementById("grupo-grado").value, grupo: document.getElementById("grupo-nombre").value.toUpperCase() }; 
+            await window.guardarGrupo(datos);
+            cerrarModalGrupo(); 
+            renderizarGrupos(); 
+            window.mostrarNotificacion("Grupo guardado", "success"); 
+        }
+
+        function editarGrupo(id) { abrirModalGrupo(id); }
+        async function eliminarGrupo(id) { 
+            if (window.alumnos.some(a => a.grupo_id === id)) { window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); return; } 
+            if (confirm("¿Eliminar este grupo?")) { await window.eliminarGrupo(id); renderizarGrupos(); window.mostrarNotificacion("Grupo eliminado", "success"); } 
+        }
+
+        // ========== MAESTRAS ==========
+        function renderizarMaestras() {
+            let tbody = document.getElementById("tabla-maestras");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            window.usuarios.filter(u => u.rol === "maestra").forEach(m => {
+                let g = window.grupos.find(g => g.id === m.grupo_id);
+                tbody.innerHTML += `<tr><td>${m.nombre}</td><td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
+                    <td>${m.email || "-"}</td><td>••••••</td>
+                    <td><button class="btn btn-primary btn-sm" onclick="editarMaestra('${m.id}')">✏️</button>
+                    <button class="btn btn-warning btn-sm" onclick="cambiarPasswordMaestra('${m.id}')">🔑</button>
+                    <button class="btn btn-danger btn-sm" onclick="eliminarMaestra('${m.id}')">🗑️</button></td></tr>`;
+            });
+        }
+
+        function actualizarSelectGruposMaestra() { 
+            let s = document.getElementById("maestra-grupo"); 
+            s.innerHTML = '<option value="">Sin grupo</option>'; 
+            window.grupos.forEach(g => { s.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; }); 
+        }
+
+        function abrirModalMaestra(id) { 
+            actualizarSelectGruposMaestra(); 
+            if (id) { 
+                let m = window.usuarios.find(u => u.id === id); 
+                if (m) { 
+                    document.getElementById("modal-maestra-titulo").textContent = "Editar Maestra"; 
+                    document.getElementById("maestra-id").value = m.id; 
+                    document.getElementById("maestra-nombre").value = m.nombre; 
+                    document.getElementById("maestra-grupo").value = m.grupo_id || ""; 
+                    document.getElementById("maestra-email").value = m.email || ""; 
+                    document.getElementById("maestra-password").value = m.password; 
+                } 
+            } else { 
+                document.getElementById("modal-maestra-titulo").textContent = "Nueva Maestra"; 
+                document.getElementById("form-maestra").reset(); 
+                document.getElementById("maestra-id").value = ""; 
+                document.getElementById("maestra-password").value = "1234"; 
+            } 
+            document.getElementById("modal-maestra").classList.add("active"); 
+        }
+
+        function cerrarModalMaestra() { document.getElementById("modal-maestra").classList.remove("active"); }
+
+        async function guardarMaestra() { 
+            let id = document.getElementById("maestra-id").value; 
+            let datos = { 
+                id: id || window.generarId(),
+                nombre: document.getElementById("maestra-nombre").value, 
+                rol: "maestra", 
+                grupo_id: document.getElementById("maestra-grupo").value || null, 
+                password: document.getElementById("maestra-password").value, 
+                email: document.getElementById("maestra-email").value 
+            }; 
+            await window.guardarUsuario(datos);
+            cerrarModalMaestra(); 
+            renderizarMaestras(); 
+            window.mostrarNotificacion("Maestra guardada", "success"); 
+        }
+
+        function editarMaestra(id) { abrirModalMaestra(id); }
+        async function eliminarMaestra(id) { if (confirm("¿Eliminar esta maestra?")) { await window.eliminarUsuario(id); renderizarMaestras(); window.mostrarNotificacion("Maestra eliminada", "success"); } }
+
+        function cambiarPasswordMaestra(id) { maestraIdParaPass = id; document.getElementById("cambiar-maestra-id").value = id; document.getElementById("nueva-password").value = ""; document.getElementById("confirmar-password").value = ""; document.getElementById("modal-cambiar-pass").classList.add("active"); }
+        function cerrarModalCambiarPass() { document.getElementById("modal-cambiar-pass").classList.remove("active"); }
+        async function guardarNuevaPassword() { 
+            let nueva = document.getElementById("nueva-password").value; 
+            let confirmar = document.getElementById("confirmar-password").value; 
+            if (nueva !== confirmar) { window.mostrarNotificacion("Las contraseñas no coinciden", "error"); return; } 
+            let index = window.usuarios.findIndex(u => u.id === maestraIdParaPass); 
+            if (index !== -1) { 
+                window.usuarios[index].password = nueva; 
+                await window.guardarUsuario(window.usuarios[index]); 
+                window.mostrarNotificacion("Contraseña actualizada", "success"); 
+            } 
+            cerrarModalCambiarPass(); 
+        }
+
+        // ========== BOLETAS ==========
+        function cargarSelectAlumnos() { 
+            let select = document.getElementById("select-alumno-boleta"); 
+            select.innerHTML = '<option value="">-- Selecciona un alumno --</option>'; 
+            window.alumnos.forEach(a => { 
+                let g = window.grupos.find(g => g.id === a.grupo_id); 
+                select.innerHTML += `<option value="${a.id}">${a.nombre} - ${g ? `${g.grado} ${g.grupo}` : a.grado}</option>`; 
+            }); 
+        }
+
+        function cargarSelectGrupos() { 
+            let select = document.getElementById("select-grupo-boletas"); 
+            select.innerHTML = '<option value="">-- Todos los grupos --</option>'; 
+            window.grupos.forEach(g => { select.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; }); 
+        }
+
+        function cargarAlumnosPorGrupo() { 
+            let grupoId = document.getElementById("select-grupo-boletas").value; 
+            let container = document.getElementById("lista-boletas-grupo"); 
+            if (!grupoId) { container.innerHTML = ""; return; } 
+            let alumnosGrupo = window.alumnos.filter(a => a.grupo_id === grupoId); 
+            let grupo = window.grupos.find(g => g.id === grupoId); 
+            if (alumnosGrupo.length === 0) { container.innerHTML = '<p>No hay alumnos en este grupo</p>'; return; } 
+            let html = `<h3>${grupo.grado} - Grupo ${grupo.grupo}</h3><div class="grid-2">`; 
+            alumnosGrupo.forEach(a => { 
+                let e = window.evaluaciones.find(ev => ev.alumno_id === a.id); 
+                let estado = window.obtenerEstadoBoleta(e); 
+                html += `<div class="card" style="text-align:center;">
+                    <h4>${a.nombre}</h4>
+                    <p>${estado.texto}</p>
+                    <button class="btn btn-primary btn-sm" onclick='evaluarBoletaDirectora("${a.id}")'>✏️ Evaluar</button>
+                    <button class="btn btn-secondary btn-sm" onclick='verBoletaDirectora("${a.id}")'>👁️ Ver Boleta</button>
+                </div>`; 
+            }); 
+            html += `</div>`; 
+            container.innerHTML = html; 
+        }
+
+        function verBoletaSeleccionada() { 
+            let id = document.getElementById("select-alumno-boleta").value; 
+            if (!id) { window.mostrarNotificacion("Selecciona un alumno", "error"); return; } 
+            verBoletaDirectora(id); 
+        }
+
+        function verBoletaDirectora(id) { 
+            window.open(`boleta.html?alumno=${id}`, "_blank"); 
+        }
+
+        function evaluarBoletaDirectora(id) { 
+            let a = window.alumnos.find(a => a.id === id); 
+            let e = window.evaluaciones.find(ev => ev.alumno_id === id);
+            sessionStorage.setItem("alumnoActual", JSON.stringify(a)); 
+            sessionStorage.setItem("evaluacionActual", JSON.stringify(e)); 
+            sessionStorage.setItem("returnUrl", "admin.html");
+            sessionStorage.setItem("returnParams", "");
+            window.location.href = "evaluar.html"; 
+        }
+
+        // ========== REPORTES ==========
+        function renderizarReportes() { 
+            let c = document.getElementById("reportes-contenido"); 
+            let firmadas = 0, total = 0; 
+            window.evaluaciones.forEach(e => { window.periodos.forEach(p => { total++; if (e.periodos?.[p.clave]?.firmada) firmadas++; }); }); 
+            c.innerHTML = `<div class="grid-2">
+                <div class="card" style="text-align:center;"><h3>📋 Alumnos</h3><p style="font-size:2rem;">${window.alumnos.length}</p></div>
+                <div class="card" style="text-align:center;"><h3>👩‍🏫 Maestras</h3><p style="font-size:2rem;">${window.usuarios.filter(u=>u.rol==="maestra").length}</p></div>
+                <div class="card" style="text-align:center;"><h3>✅ Firmadas</h3><p style="font-size:2rem;">${firmadas}/${total}</p></div>
+                <div class="card" style="text-align:center;"><h3>📚 Grupos</h3><p style="font-size:2rem;">${window.grupos.length}</p></div>
+            </div>`; 
+        }
+
+        function imprimirReporteGeneral() { 
+            let ventana = window.open("", "_blank"); 
+            let html = `<div style="text-align:center;"><h1>${window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN"}</h1><p>CICLO ESCOLAR ${window.configuracion?.ciclo || "2025-2026"}</p><hr><h2>Reporte General</h2></div>`; 
+            window.grupos.forEach(g => { 
+                let ag = window.alumnos.filter(a => a.grupo_id === g.id); 
+                html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><tr><th>Alumno</th><th>Tutor</th><th>NOV</th><th>MAR</th><th>JUL</th></tr>`; 
+                ag.forEach(a => { 
+                    let e = window.evaluaciones.find(ev => ev.alumno_id === a.id); 
+                    html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.marzo?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.julio?.firmada ? "✅" : "⬜"}</td></tr>`; 
+                }); 
+                html += `</table><br>`; 
+            }); 
+            ventana.document.write(`<!DOCTYPE html><html><head><title>Reporte General</title><style>body{font-family:Arial;padding:40px;} table{border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;}</style></head><body>${html}<div style="text-align:center; margin-top:30px;"><button onclick="window.print()">🖨️ Imprimir</button></div></body></html>`); 
+            ventana.document.close(); 
+        }
+
+        function imprimirReportePorGrupos() { 
+            let ventana = window.open("", "_blank"); 
+            let html = `<div style="text-align:center;"><h1>${window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN"}</h1><p>CICLO ESCOLAR ${window.configuracion?.ciclo || "2025-2026"}</p><hr><h2>Reporte por Grupos</h2></div>`; 
+            window.grupos.forEach(g => { 
+                let ag = window.alumnos.filter(a => a.grupo_id === g.id); 
+                html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th>  </thead><tbody>`; 
+                ag.forEach(a => { 
+                    let e = window.evaluaciones.find(ev => ev.alumno_id === a.id); 
+                    html += `   <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
+                }); 
+                html += `</tbody></table><br>`; 
+            }); 
+            ventana.document.write(`<!DOCTYPE html><html><head><title>Reporte por Grupos</title><style>body{font-family:Arial;padding:40px;} table{border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;}</style></head><body>${html}<div style="text-align:center; margin-top:30px;"><button onclick="window.print()">🖨️ Imprimir</button></div></body></html>`); 
+            ventana.document.close(); 
+        }
+
+        // ========== CAMBIAR SECCIÓN ==========
+        async function cambiarSeccion(s) { 
+            document.querySelectorAll('.seccion').forEach(el => el.classList.remove('active')); 
+            document.getElementById(`seccion-${s}`).classList.add('active'); 
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); 
+            event.target.classList.add('active'); 
+            if (s === 'alumnos') renderizarAlumnos(); 
+            if (s === 'grupos') renderizarGrupos(); 
+            if (s === 'maestras') renderizarMaestras(); 
+            if (s === 'boletas') { cargarSelectAlumnos(); cargarSelectGrupos(); } 
+            if (s === 'reportes') renderizarReportes(); 
+        }
+
+        // ========== INICIALIZACIÓN ==========
+        async function inicializar() {
+            await esperarDatosGlobales();
+            renderizarAlumnos(); 
+            renderizarGrupos(); 
+            renderizarMaestras();
+            document.getElementById("config-nombre").value = window.configuracion?.nombre || ""; 
+            document.getElementById("config-clave").value = window.configuracion?.clave || ""; 
+            document.getElementById("config-ciclo").value = window.configuracion?.ciclo || ""; 
+            document.getElementById("config-director").value = window.configuracion?.director || ""; 
+            document.getElementById("config-logo").value = window.configuracion?.logo || ""; 
+            actualizarLogo();
+        }
+
+        inicializar();
+        
+        window.cambiarSeccion = cambiarSeccion; 
+        window.guardarConfiguracion = guardarConfiguracion; 
+        window.abrirModalAlumno = abrirModalAlumno; 
+        window.editarAlumno = editarAlumno; 
+        window.eliminarAlumno = eliminarAlumno; 
+        window.abrirModalGrupo = abrirModalGrupo; 
+        window.editarGrupo = editarGrupo; 
+        window.eliminarGrupo = eliminarGrupo; 
+        window.abrirModalMaestra = abrirModalMaestra; 
+        window.editarMaestra = editarMaestra; 
+        window.eliminarMaestra = eliminarMaestra; 
+        window.cambiarPasswordMaestra = cambiarPasswordMaestra; 
+        window.verBoletaSeleccionada = verBoletaSeleccionada; 
+        window.cargarAlumnosPorGrupo = cargarAlumnosPorGrupo; 
+        window.verBoletaDirectora = verBoletaDirectora; 
+        window.evaluarBoletaDirectora = evaluarBoletaDirectora;
+        window.imprimirReporteGeneral = imprimirReporteGeneral; 
+        window.imprimirReportePorGrupos = imprimirReportePorGrupos;
+    </script>
+</body>
+</html>
