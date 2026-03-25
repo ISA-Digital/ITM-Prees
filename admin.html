@@ -69,7 +69,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </thead>
                         <tbody id="tabla-alumnos"></tbody>
-                     </table>
+                      </table>
                 </div>
             </div>
         </div>
@@ -85,7 +85,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </thead>
                         <tbody id="tabla-grupos"></tbody>
-                     </table>
+                      </table>
                 </div>
             </div>
         </div>
@@ -101,7 +101,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </thead>
                         <tbody id="tabla-maestras"></tbody>
-                     </table>
+                      </table>
                 </div>
             </div>
         </div>
@@ -172,8 +172,23 @@
 
     <script>
         let maestraIdParaPass = null;
+        let supabase = null;
 
         // ========== FUNCIONES AUXILIARES ==========
+        function obtenerSupabase() {
+            if (supabase) return supabase;
+            if (window.supabaseClient) {
+                supabase = window.supabaseClient;
+                return supabase;
+            }
+            // Intentar crear el cliente manualmente como último recurso
+            const SUPABASE_URL = 'https://eowjlgvigsdooflqepxq.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvd2psZ3ZpZ3Nkb29mbHFlcHhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDI3OTMsImV4cCI6MjA4OTg3ODc5M30.-4Oi4Kyec0U4aPtpM3TbKLqLK8qEJT_pNw5Z_jmuNJ8';
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("🟡 Supabase creado manualmente");
+            return supabase;
+        }
+        
         function actualizarLogo() { 
             let img = document.getElementById("header-logo"); 
             if (window.configuracion?.logo && window.configuracion.logo !== "") { 
@@ -210,16 +225,6 @@
             }
         });
 
-        // ========== FUNCIÓN PARA OBTENER SUPABASECLIENT DE FORMA SEGURA ==========
-        function obtenerSupabaseClient() {
-            if (!window.supabaseClient) {
-                console.error("❌ supabaseClient no está disponible");
-                window.mostrarNotificacion("Error de conexión. Recarga la página.", "error");
-                return null;
-            }
-            return window.supabaseClient;
-        }
-
         // ========== ALUMNOS ==========
         function renderizarAlumnos() {
             let tbody = document.getElementById("tabla-alumnos");
@@ -230,17 +235,17 @@
                 let g = window.grupos?.find(g => g.id === a.grupo_id);
                 tbody.innerHTML += `
                     <tr>
-                         <td>${a.nombre}</td>
-                         <td>${a.curp || "-"}</td>
-                         <td>${a.grado}</td>
-                         <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
-                         <td>${a.tutor}</td>
-                         <td>${a.telefono || "-"}</td>
-                         <td>
+                        <td>${a.nombre}</td>
+                        <td>${a.curp || "-"}</td>
+                        <td>${a.grado}</td>
+                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
+                        <td>${a.tutor}</td>
+                        <td>${a.telefono || "-"}</td>
+                        <td>
                             <button class="btn btn-primary btn-sm" onclick="editarAlumno('${a.id}')">✏️</button>
                             <button class="btn btn-danger btn-sm" onclick="eliminarAlumno('${a.id}')">🗑️</button>
-                         </td>
-                     </tr>
+                        </td>
+                    </tr>
                 `;
             });
         }
@@ -282,9 +287,9 @@
         }
 
         async function guardarAlumno() { 
-            // Obtener el cliente de Supabase de forma segura
-            const supabase = obtenerSupabaseClient();
-            if (!supabase) {
+            // Obtener cliente de Supabase
+            const supabaseClient = obtenerSupabase();
+            if (!supabaseClient) {
                 window.mostrarNotificacion("Error de conexión. Recarga la página.", "error");
                 return;
             }
@@ -321,7 +326,7 @@
             
             try {
                 // Guardar alumno en Supabase
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('alumnos')
                     .upsert([alumnoData])
                     .select();
@@ -370,7 +375,7 @@
                 }
                 
                 // Guardar evaluación en Supabase
-                const { data: evalData, error: evalError } = await supabase
+                const { data: evalData, error: evalError } = await supabaseClient
                     .from('evaluaciones')
                     .insert([nuevaEvaluacion])
                     .select();
@@ -399,13 +404,13 @@
         }
 
         async function eliminarAlumno(id) { 
-            const supabase = obtenerSupabaseClient();
-            if (!supabase) return;
+            const supabaseClient = obtenerSupabase();
+            if (!supabaseClient) return;
             
             if (confirm("¿Eliminar este alumno? Se eliminarán también todas sus evaluaciones.")) { 
                 try {
                     // Eliminar de Supabase
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('alumnos')
                         .delete()
                         .eq('id', id);
@@ -439,14 +444,14 @@
                 let count = window.alumnos?.filter(a => a.grupo_id === g.id).length || 0;
                 tbody.innerHTML += `
                     <tr>
-                         <td>${g.grado}</td>
-                         <td>${g.grupo}</td>
-                         <td>${count}</td>
-                         <td>
+                        <td>${g.grado}</td>
+                        <td>${g.grupo}</td>
+                        <td>${count}</td>
+                        <td>
                             <button class="btn btn-primary btn-sm" onclick="editarGrupo('${g.id}')">✏️</button>
                             <button class="btn btn-danger btn-sm" onclick="eliminarGrupo('${g.id}')">🗑️</button>
-                         </td>
-                     </tr>
+                        </td>
+                    </tr>
                 `;
             });
         }
@@ -471,8 +476,8 @@
         function cerrarModalGrupo() { document.getElementById("modal-grupo").classList.remove("active"); }
 
         async function guardarGrupo() { 
-            const supabase = obtenerSupabaseClient();
-            if (!supabase) return;
+            const supabaseClient = obtenerSupabase();
+            if (!supabaseClient) return;
             
             let id = document.getElementById("grupo-id").value; 
             let datos = { 
@@ -510,16 +515,16 @@
                 let g = window.grupos?.find(g => g.id === m.grupo_id);
                 tbody.innerHTML += `
                     <tr>
-                         <td>${m.nombre}</td>
-                         <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
-                         <td>${m.email || "-"}</td>
-                         <td>••••••</td>
-                         <td>
+                        <td>${m.nombre}</td>
+                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
+                        <td>${m.email || "-"}</td>
+                        <td>••••••</td>
+                        <td>
                             <button class="btn btn-primary btn-sm" onclick="editarMaestra('${m.id}')">✏️</button>
                             <button class="btn btn-warning btn-sm" onclick="cambiarPasswordMaestra('${m.id}')">🔑</button>
                             <button class="btn btn-danger btn-sm" onclick="eliminarMaestra('${m.id}')">🗑️</button>
-                         </td>
-                     </tr>
+                        </td>
+                    </tr>
                 `;
             });
         }
@@ -555,8 +560,8 @@
         function cerrarModalMaestra() { document.getElementById("modal-maestra").classList.remove("active"); }
 
         async function guardarMaestra() { 
-            const supabase = obtenerSupabaseClient();
-            if (!supabase) return;
+            const supabaseClient = obtenerSupabase();
+            if (!supabaseClient) return;
             
             let id = document.getElementById("maestra-id").value; 
             let datos = { 
@@ -594,8 +599,8 @@
         function cerrarModalCambiarPass() { document.getElementById("modal-cambiar-pass").classList.remove("active"); }
 
         async function guardarNuevaPassword() { 
-            const supabase = obtenerSupabaseClient();
-            if (!supabase) return;
+            const supabaseClient = obtenerSupabase();
+            if (!supabaseClient) return;
             
             let nueva = document.getElementById("nueva-password").value; 
             let confirmar = document.getElementById("confirmar-password").value; 
@@ -690,10 +695,10 @@
             if (window.grupos) {
                 window.grupos.forEach(g => { 
                     let ag = window.alumnos?.filter(a => a.grupo_id === g.id) || []; 
-                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead><tr><th>Alumno</th><th>Tutor</th><th>NOV</th><th>MAR</th><th>JUL</th></tr></thead><tbody>`; 
+                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead> <tr><th>Alumno</th><th>Tutor</th><th>NOV</th><th>MAR</th><th>JUL</th></tr> </thead><tbody>`; 
                     ag.forEach(a => { 
                         let e = window.evaluaciones?.find(ev => ev.alumno_id === a.id); 
-                        html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.marzo?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.julio?.firmada ? "✅" : "⬜"}</td></tr>`; 
+                        html += ` <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.marzo?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.julio?.firmada ? "✅" : "⬜"}</td></tr>`; 
                     }); 
                     html += `</tbody></table><br>`; 
                 }); 
@@ -708,10 +713,10 @@
             if (window.grupos) {
                 window.grupos.forEach(g => { 
                     let ag = window.alumnos?.filter(a => a.grupo_id === g.id) || []; 
-                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead><tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th></tr></thead><tbody>`; 
+                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead> <tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th></tr> </thead><tbody>`; 
                     ag.forEach(a => { 
                         let e = window.evaluaciones?.find(ev => ev.alumno_id === a.id); 
-                        html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
+                        html += ` <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
                     }); 
                     html += `</tbody></table><br>`; 
                 }); 
@@ -738,7 +743,7 @@
             // Esperar a que los datos estén cargados
             const esperarDatos = () => new Promise(resolve => {
                 const intervalo = setInterval(() => {
-                    if (window.alumnos && window.grupos && window.usuarios && window.supabaseClient) {
+                    if (window.alumnos && window.grupos && window.usuarios) {
                         clearInterval(intervalo);
                         resolve();
                     }
