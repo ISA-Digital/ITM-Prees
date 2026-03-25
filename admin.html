@@ -67,9 +67,9 @@
                 </div>
                 <div style="overflow-x:auto;">
                     <table style="width:100%; border-collapse:collapse;">
-                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </tr></thead>
+                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </thead>
                         <tbody id="tabla-alumnos"></tbody>
-                    </table>
+                     </table>
                 </div>
             </div>
         </div>
@@ -83,7 +83,7 @@
                 </div>
                 <div style="overflow-x:auto;">
                     <table style="width:100%; border-collapse:collapse;">
-                        <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </tr></thead>
+                        <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </thead>
                         <tbody id="tabla-grupos"></tbody>
                     </table>
                 </div>
@@ -99,7 +99,7 @@
                 </div>
                 <div style="overflow-x:auto;">
                     <table style="width:100%; border-collapse:collapse;">
-                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </tr></thead>
+                        <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </thead>
                         <tbody id="tabla-maestras"></tbody>
                     </table>
                 </div>
@@ -172,22 +172,8 @@
 
     <script>
         let maestraIdParaPass = null;
-        let datosListos = false;
 
-        async function esperarDatosGlobales() {
-            return new Promise((resolve) => {
-                const checkInterval = setInterval(() => {
-                    if (window.grupos && window.alumnos && window.usuarios && window.evaluaciones && 
-                        window.grupos.length > 0 && window.alumnos.length > 0) {
-                        clearInterval(checkInterval);
-                        console.log("✅ Datos globales listos");
-                        resolve(true);
-                    }
-                }, 200);
-                setTimeout(() => { clearInterval(checkInterval); resolve(false); }, 10000);
-            });
-        }
-
+        // ========== FUNCIONES AUXILIARES ==========
         function actualizarLogo() { 
             let img = document.getElementById("header-logo"); 
             if (window.configuracion?.logo && window.configuracion.logo !== "") { 
@@ -233,10 +219,16 @@
                 let g = window.grupos.find(g => g.id === a.grupo_id);
                 tbody.innerHTML += `
                     <tr>
-                        <td>${a.nombre}</td><td>${a.curp || "-"}</td><td>${a.grado}</td>
-                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td><td>${a.tutor}</td><td>${a.telefono || "-"}</td>
-                        <td><button class="btn btn-primary btn-sm" onclick="editarAlumno('${a.id}')">✏️</button>
-                        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno('${a.id}')">🗑️</button></td>
+                        <td>${a.nombre}</td>
+                        <td>${a.curp || "-"}</td>
+                        <td>${a.grado}</td>
+                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
+                        <td>${a.tutor}</td>
+                        <td>${a.telefono || "-"}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="editarAlumno('${a.id}')">✏️</button>
+                            <button class="btn btn-danger btn-sm" onclick="eliminarAlumno('${a.id}')">🗑️</button>
+                        </td>
                     </tr>
                 `;
             });
@@ -245,10 +237,12 @@
         function actualizarSelectGrupos(selectId) { 
             let select = document.getElementById(selectId); 
             select.innerHTML = '<option value="">Sin grupo</option>'; 
-            window.grupos.forEach(g => { select.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; }); 
+            window.grupos.forEach(g => { 
+                select.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; 
+            }); 
         }
 
-        function abrirModalAlumno(id) { 
+        function abrirModalAlumno(id = null) { 
             actualizarSelectGrupos("alumno-grupo"); 
             if (id) { 
                 let a = window.alumnos.find(a => a.id === id); 
@@ -271,28 +265,145 @@
             document.getElementById("modal-alumno").classList.add("active"); 
         }
 
-        function cerrarModalAlumno() { document.getElementById("modal-alumno").classList.remove("active"); }
-
-        async function guardarAlumno() { 
-            let id = document.getElementById("alumno-id").value; 
-            let datos = { 
-                id: id || window.generarId(),
-                nombre: document.getElementById("alumno-nombre").value, 
-                curp: document.getElementById("alumno-curp").value, 
-                grado: document.getElementById("alumno-grado").value, 
-                grupo_id: document.getElementById("alumno-grupo").value || null, 
-                tutor: document.getElementById("alumno-tutor").value, 
-                telefono: document.getElementById("alumno-telefono").value, 
-                email: document.getElementById("alumno-email").value 
-            }; 
-            await window.guardarAlumno(datos);
-            cerrarModalAlumno(); 
-            renderizarAlumnos(); 
-            window.mostrarNotificacion("Alumno guardado", "success"); 
+        function cerrarModalAlumno() { 
+            document.getElementById("modal-alumno").classList.remove("active"); 
         }
 
-        function editarAlumno(id) { abrirModalAlumno(id); }
-        async function eliminarAlumno(id) { if (confirm("¿Eliminar este alumno?")) { await window.eliminarAlumno(id); renderizarAlumnos(); window.mostrarNotificacion("Alumno eliminado", "success"); } }
+        async function guardarAlumno() { 
+            // Obtener valores del formulario
+            const id = document.getElementById("alumno-id").value;
+            const nombre = document.getElementById("alumno-nombre").value;
+            const curp = document.getElementById("alumno-curp").value;
+            const grado = document.getElementById("alumno-grado").value;
+            const grupoId = document.getElementById("alumno-grupo").value || null;
+            const tutor = document.getElementById("alumno-tutor").value;
+            const telefono = document.getElementById("alumno-telefono").value;
+            const email = document.getElementById("alumno-email").value;
+            
+            // Validar campos requeridos
+            if (!nombre || !tutor) {
+                window.mostrarNotificacion("Nombre y tutor son obligatorios", "error");
+                return;
+            }
+            
+            // Crear objeto alumno
+            const alumnoData = {
+                id: id || window.generarId(),
+                nombre: nombre,
+                curp: curp,
+                grado: grado,
+                grupo_id: grupoId,
+                tutor: tutor,
+                telefono: telefono,
+                email: email
+            };
+            
+            console.log("🔵 Guardando alumno:", alumnoData);
+            
+            try {
+                // Guardar alumno en Supabase
+                const { data, error } = await window.supabaseClient
+                    .from('alumnos')
+                    .upsert([alumnoData])
+                    .select();
+                
+                if (error) {
+                    console.error("❌ Error guardando alumno:", error);
+                    window.mostrarNotificacion("Error al guardar alumno: " + error.message, "error");
+                    return;
+                }
+                
+                const alumnoGuardado = data[0];
+                console.log("✅ Alumno guardado:", alumnoGuardado);
+                
+                // Actualizar array local
+                const index = window.alumnos.findIndex(a => a.id === alumnoGuardado.id);
+                if (index !== -1) {
+                    window.alumnos[index] = alumnoGuardado;
+                } else {
+                    window.alumnos.push(alumnoGuardado);
+                }
+                
+                // Crear evaluación (boleta) para el nuevo alumno
+                const nuevaEvaluacion = {
+                    id: window.generarId(),
+                    alumno_id: alumnoGuardado.id,
+                    periodos: {}
+                };
+                
+                // Inicializar los 3 periodos con campos vacíos
+                for (let p of window.periodos) {
+                    nuevaEvaluacion.periodos[p.clave] = {
+                        campos: {},
+                        recomendaciones: "",
+                        firmada: false,
+                        firma: null,
+                        firmaNombre: null,
+                        fechaFirma: null,
+                        enviada: false,
+                        token: null
+                    };
+                    // Inicializar todos los campos de evaluación vacíos
+                    window.camposEvaluacion.forEach(c => {
+                        nuevaEvaluacion.periodos[p.clave].campos[c] = "";
+                    });
+                }
+                
+                // Guardar evaluación en Supabase
+                const { data: evalData, error: evalError } = await window.supabaseClient
+                    .from('evaluaciones')
+                    .insert([nuevaEvaluacion])
+                    .select();
+                
+                if (evalError) {
+                    console.error("❌ Error creando evaluación:", evalError);
+                } else if (evalData) {
+                    window.evaluaciones.push(evalData[0]);
+                    console.log("✅ Evaluación creada para el nuevo alumno");
+                }
+                
+                // Cerrar modal y actualizar vista
+                cerrarModalAlumno();
+                renderizarAlumnos();
+                window.mostrarNotificacion("✅ Alumno guardado correctamente", "success");
+                
+            } catch (error) {
+                console.error("❌ Error inesperado:", error);
+                window.mostrarNotificacion("Error al guardar alumno", "error");
+            }
+        }
+
+        function editarAlumno(id) { 
+            abrirModalAlumno(id); 
+        }
+
+        async function eliminarAlumno(id) { 
+            if (confirm("¿Eliminar este alumno? Se eliminarán también todas sus evaluaciones.")) { 
+                try {
+                    // Eliminar de Supabase
+                    const { error } = await window.supabaseClient
+                        .from('alumnos')
+                        .delete()
+                        .eq('id', id);
+                    
+                    if (error) {
+                        console.error("❌ Error eliminando:", error);
+                        window.mostrarNotificacion("Error al eliminar alumno", "error");
+                        return;
+                    }
+                    
+                    // Eliminar del array local
+                    window.alumnos = window.alumnos.filter(a => a.id !== id);
+                    window.evaluaciones = window.evaluaciones.filter(e => e.alumno_id !== id);
+                    
+                    renderizarAlumnos();
+                    window.mostrarNotificacion("Alumno eliminado", "success");
+                } catch (error) {
+                    console.error("❌ Error:", error);
+                    window.mostrarNotificacion("Error al eliminar", "error");
+                }
+            } 
+        }
 
         // ========== GRUPOS ==========
         function renderizarGrupos() {
@@ -301,13 +412,21 @@
             tbody.innerHTML = "";
             window.grupos.forEach(g => {
                 let count = window.alumnos.filter(a => a.grupo_id === g.id).length;
-                tbody.innerHTML += `<tr><td>${g.grado}</td><td>${g.grupo}</td><td>${count}</td>
-                    <td><button class="btn btn-primary btn-sm" onclick="editarGrupo('${g.id}')">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="eliminarGrupo('${g.id}')">🗑️</button></td></tr>`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${g.grado}</td>
+                        <td>${g.grupo}</td>
+                        <td>${count}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="editarGrupo('${g.id}')">✏️</button>
+                            <button class="btn btn-danger btn-sm" onclick="eliminarGrupo('${g.id}')">🗑️</button>
+                        </td>
+                    </tr>
+                `;
             });
         }
 
-        function abrirModalGrupo(id) { 
+        function abrirModalGrupo(id = null) { 
             if (id) { 
                 let g = window.grupos.find(g => g.id === id); 
                 if (g) { 
@@ -328,7 +447,11 @@
 
         async function guardarGrupo() { 
             let id = document.getElementById("grupo-id").value; 
-            let datos = { id: id || window.generarId(), grado: document.getElementById("grupo-grado").value, grupo: document.getElementById("grupo-nombre").value.toUpperCase() }; 
+            let datos = { 
+                id: id || window.generarId(), 
+                grado: document.getElementById("grupo-grado").value, 
+                grupo: document.getElementById("grupo-nombre").value.toUpperCase() 
+            }; 
             await window.guardarGrupo(datos);
             cerrarModalGrupo(); 
             renderizarGrupos(); 
@@ -336,9 +459,17 @@
         }
 
         function editarGrupo(id) { abrirModalGrupo(id); }
+        
         async function eliminarGrupo(id) { 
-            if (window.alumnos.some(a => a.grupo_id === id)) { window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); return; } 
-            if (confirm("¿Eliminar este grupo?")) { await window.eliminarGrupo(id); renderizarGrupos(); window.mostrarNotificacion("Grupo eliminado", "success"); } 
+            if (window.alumnos.some(a => a.grupo_id === id)) { 
+                window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); 
+                return; 
+            } 
+            if (confirm("¿Eliminar este grupo?")) { 
+                await window.eliminarGrupo(id); 
+                renderizarGrupos(); 
+                window.mostrarNotificacion("Grupo eliminado", "success"); 
+            } 
         }
 
         // ========== MAESTRAS ==========
@@ -348,11 +479,19 @@
             tbody.innerHTML = "";
             window.usuarios.filter(u => u.rol === "maestra").forEach(m => {
                 let g = window.grupos.find(g => g.id === m.grupo_id);
-                tbody.innerHTML += `<tr><td>${m.nombre}</td><td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
-                    <td>${m.email || "-"}</td><td>••••••</td>
-                    <td><button class="btn btn-primary btn-sm" onclick="editarMaestra('${m.id}')">✏️</button>
-                    <button class="btn btn-warning btn-sm" onclick="cambiarPasswordMaestra('${m.id}')">🔑</button>
-                    <button class="btn btn-danger btn-sm" onclick="eliminarMaestra('${m.id}')">🗑️</button></td></tr>`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${m.nombre}</td>
+                        <td>${g ? `${g.grado} - ${g.grupo}` : "-"}</td>
+                        <td>${m.email || "-"}</td>
+                        <td>••••••</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="editarMaestra('${m.id}')">✏️</button>
+                            <button class="btn btn-warning btn-sm" onclick="cambiarPasswordMaestra('${m.id}')">🔑</button>
+                            <button class="btn btn-danger btn-sm" onclick="eliminarMaestra('${m.id}')">🗑️</button>
+                        </td>
+                    </tr>
+                `;
             });
         }
 
@@ -362,7 +501,7 @@
             window.grupos.forEach(g => { s.innerHTML += `<option value="${g.id}">${g.grado} - Grupo ${g.grupo}</option>`; }); 
         }
 
-        function abrirModalMaestra(id) { 
+        function abrirModalMaestra(id = null) { 
             actualizarSelectGruposMaestra(); 
             if (id) { 
                 let m = window.usuarios.find(u => u.id === id); 
@@ -402,10 +541,25 @@
         }
 
         function editarMaestra(id) { abrirModalMaestra(id); }
-        async function eliminarMaestra(id) { if (confirm("¿Eliminar esta maestra?")) { await window.eliminarUsuario(id); renderizarMaestras(); window.mostrarNotificacion("Maestra eliminada", "success"); } }
+        
+        async function eliminarMaestra(id) { 
+            if (confirm("¿Eliminar esta maestra?")) { 
+                await window.eliminarUsuario(id); 
+                renderizarMaestras(); 
+                window.mostrarNotificacion("Maestra eliminada", "success"); 
+            } 
+        }
 
-        function cambiarPasswordMaestra(id) { maestraIdParaPass = id; document.getElementById("cambiar-maestra-id").value = id; document.getElementById("nueva-password").value = ""; document.getElementById("confirmar-password").value = ""; document.getElementById("modal-cambiar-pass").classList.add("active"); }
+        function cambiarPasswordMaestra(id) { 
+            maestraIdParaPass = id; 
+            document.getElementById("cambiar-maestra-id").value = id; 
+            document.getElementById("nueva-password").value = ""; 
+            document.getElementById("confirmar-password").value = ""; 
+            document.getElementById("modal-cambiar-pass").classList.add("active"); 
+        }
+
         function cerrarModalCambiarPass() { document.getElementById("modal-cambiar-pass").classList.remove("active"); }
+
         async function guardarNuevaPassword() { 
             let nueva = document.getElementById("nueva-password").value; 
             let confirmar = document.getElementById("confirmar-password").value; 
@@ -511,12 +665,12 @@
             let html = `<div style="text-align:center;"><h1>${window.configuracion?.nombre || "INSTITUTO TERESITA MARTÍN"}</h1><p>CICLO ESCOLAR ${window.configuracion?.ciclo || "2025-2026"}</p><hr><h2>Reporte por Grupos</h2></div>`; 
             window.grupos.forEach(g => { 
                 let ag = window.alumnos.filter(a => a.grupo_id === g.id); 
-                html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th>  </thead><tbody>`; 
+                html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th></tr>`; 
                 ag.forEach(a => { 
                     let e = window.evaluaciones.find(ev => ev.alumno_id === a.id); 
-                    html += `   <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
+                    html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
                 }); 
-                html += `</tbody></table><br>`; 
+                html += `</table><br>`; 
             }); 
             ventana.document.write(`<!DOCTYPE html><html><head><title>Reporte por Grupos</title><style>body{font-family:Arial;padding:40px;} table{border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;}</style></head><body>${html}<div style="text-align:center; margin-top:30px;"><button onclick="window.print()">🖨️ Imprimir</button></div></body></html>`); 
             ventana.document.close(); 
@@ -537,7 +691,19 @@
 
         // ========== INICIALIZACIÓN ==========
         async function inicializar() {
-            await esperarDatosGlobales();
+            // Esperar a que los datos estén cargados
+            const esperarDatos = () => new Promise(resolve => {
+                const intervalo = setInterval(() => {
+                    if (window.alumnos && window.grupos && window.usuarios) {
+                        clearInterval(intervalo);
+                        resolve();
+                    }
+                }, 200);
+                setTimeout(() => clearInterval(intervalo), 10000);
+            });
+            
+            await esperarDatos();
+            
             renderizarAlumnos(); 
             renderizarGrupos(); 
             renderizarMaestras();
@@ -551,6 +717,7 @@
 
         inicializar();
         
+        // Exponer funciones globales
         window.cambiarSeccion = cambiarSeccion; 
         window.guardarConfiguracion = guardarConfiguracion; 
         window.abrirModalAlumno = abrirModalAlumno; 
