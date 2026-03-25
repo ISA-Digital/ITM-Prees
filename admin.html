@@ -18,6 +18,9 @@
         .header-logo { max-height: 60px; margin-right: 15px; }
         .header-content { display: flex; align-items: center; gap: 15px; }
         .loading-spinner { text-align: center; padding: 40px; color: #0a2f6c; }
+        .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; padding: 15px; border-radius: 10px; }
+        .alert-warning { background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; padding: 15px; border-radius: 10px; }
+        .alert-info { background: #e3f2fd; color: #0a2f6c; border: 1px solid #bbdef5; padding: 15px; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -39,6 +42,7 @@
             <button class="tab-btn" onclick="cambiarSeccion('alumnos')">📋 Alumnos</button>
             <button class="tab-btn" onclick="cambiarSeccion('grupos')">📚 Grupos</button>
             <button class="tab-btn" onclick="cambiarSeccion('maestras')">👩‍🏫 Maestras</button>
+            <button class="tab-btn" onclick="cambiarSeccion('carga')">📊 Carga Masiva</button>
             <button class="tab-btn" onclick="cambiarSeccion('boletas')">📄 Boletas</button>
             <button class="tab-btn" onclick="cambiarSeccion('reportes')">📊 Reportes</button>
         </div>
@@ -69,7 +73,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </thead>
                         <tbody id="tabla-alumnos"></tbody>
-                     </table>
+                      </table>
                 </div>
             </div>
         </div>
@@ -85,7 +89,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </thead>
                         <tbody id="tabla-grupos"></tbody>
-                     </table>
+                      </table>
                 </div>
             </div>
         </div>
@@ -101,8 +105,56 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </thead>
                         <tbody id="tabla-maestras"></tbody>
-                     </table>
+                      </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- Carga Masiva -->
+        <div id="seccion-carga" class="seccion">
+            <div class="card">
+                <h2>📊 Carga Masiva de Alumnos</h2>
+                <p style="color:#666; margin-bottom:15px;">
+                    Copia y pega datos desde Excel (formato: Nombre, CURP, Grado, Grupo, Tutor, Teléfono, Email)<br>
+                    <strong>Formato:</strong> Separa con TAB (desde Excel) o con comas (CSV)
+                </p>
+                
+                <div class="form-group">
+                    <label>📋 Pegar datos aquí (desde Excel)</label>
+                    <textarea id="datosMasivos" rows="8" style="font-family: monospace; font-size: 12px; width:100%;" placeholder='Ejemplo:
+Sofía Martínez López	MALS230105HDFRPR09	1° Preescolar	A	María López	5512345678	maria@email.com
+Mateo González Ruiz	GORM220312HDFRPR02	1° Preescolar	A	Carlos González	5587654321	carlos@email.com'></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>📎 O selecciona un archivo CSV/TXT</label>
+                    <input type="file" id="archivoExcel" accept=".csv, .txt">
+                </div>
+                
+                <div class="form-group">
+                    <label>📌 Delimitador</label>
+                    <select id="delimitador">
+                        <option value="tab">Tabulador (desde Excel)</option>
+                        <option value="comma">Coma (CSV)</option>
+                        <option value="semicolon">Punto y coma (;)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>🔄 ¿Primera fila es encabezado?</label>
+                    <select id="tieneEncabezado">
+                        <option value="no">No, la primera fila son datos</option>
+                        <option value="si">Sí, saltar primera fila</option>
+                    </select>
+                </div>
+                
+                <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="procesarCargaMasiva()">📥 Cargar Alumnos</button>
+                    <button class="btn btn-secondary" onclick="descargarPlantilla()">📄 Descargar Plantilla Excel</button>
+                    <button class="btn btn-secondary" onclick="limpiarAreaCarga()">🗑️ Limpiar</button>
+                </div>
+                
+                <div id="resultadoCarga" style="margin-top:20px; display:none;"></div>
             </div>
         </div>
 
@@ -272,14 +324,12 @@
         }
 
         async function guardarAlumno() { 
-            // Obtener cliente de Supabase
             const supabase = window.supabaseClient;
             if (!supabase) {
                 window.mostrarNotificacion("Error de conexión. Recarga la página.", "error");
                 return;
             }
             
-            // Obtener valores del formulario
             const id = document.getElementById("alumno-id").value;
             const nombre = document.getElementById("alumno-nombre").value;
             const curp = document.getElementById("alumno-curp").value;
@@ -289,13 +339,11 @@
             const telefono = document.getElementById("alumno-telefono").value;
             const email = document.getElementById("alumno-email").value;
             
-            // Validar campos requeridos
             if (!nombre || !tutor) {
                 window.mostrarNotificacion("Nombre y tutor son obligatorios", "error");
                 return;
             }
             
-            // Crear objeto alumno
             const alumnoData = {
                 id: id || window.generarId(),
                 nombre: nombre,
@@ -307,118 +355,51 @@
                 email: email
             };
             
-            console.log("🔵 Guardando alumno:", alumnoData);
-            
             try {
-                // Guardar alumno en Supabase
-                const { data, error } = await supabase
-                    .from('alumnos')
-                    .upsert([alumnoData])
-                    .select();
-                
-                if (error) {
-                    console.error("❌ Error guardando alumno:", error);
-                    window.mostrarNotificacion("Error al guardar alumno: " + error.message, "error");
-                    return;
-                }
+                const { data, error } = await supabase.from('alumnos').upsert([alumnoData]).select();
+                if (error) throw error;
                 
                 const alumnoGuardado = data[0];
-                console.log("✅ Alumno guardado:", alumnoGuardado);
-                
-                // Actualizar array local
-                if (!window.alumnos) window.alumnos = [];
                 const index = window.alumnos.findIndex(a => a.id === alumnoGuardado.id);
-                if (index !== -1) {
-                    window.alumnos[index] = alumnoGuardado;
-                } else {
-                    window.alumnos.push(alumnoGuardado);
-                }
+                if (index !== -1) window.alumnos[index] = alumnoGuardado;
+                else window.alumnos.push(alumnoGuardado);
                 
-                // Crear evaluación (boleta) para el nuevo alumno
+                // Crear evaluación para el nuevo alumno
                 const nuevaEvaluacion = {
                     id: window.generarId(),
                     alumno_id: alumnoGuardado.id,
                     periodos: {}
                 };
-                
-                // Inicializar los 3 periodos con campos vacíos
                 for (let p of window.periodos) {
                     nuevaEvaluacion.periodos[p.clave] = {
-                        campos: {},
-                        recomendaciones: "",
-                        firmada: false,
-                        firma: null,
-                        firmaNombre: null,
-                        fechaFirma: null,
-                        enviada: false,
-                        token: null
+                        campos: {}, recomendaciones: "", firmada: false, firma: null, firmaNombre: null,
+                        fechaFirma: null, enviada: false, token: null
                     };
-                    // Inicializar todos los campos de evaluación vacíos
-                    window.camposEvaluacion.forEach(c => {
-                        nuevaEvaluacion.periodos[p.clave].campos[c] = "";
-                    });
+                    window.camposEvaluacion.forEach(c => { nuevaEvaluacion.periodos[p.clave].campos[c] = ""; });
                 }
+                await supabase.from('evaluaciones').insert([nuevaEvaluacion]);
                 
-                // Guardar evaluación en Supabase
-                const { data: evalData, error: evalError } = await supabase
-                    .from('evaluaciones')
-                    .insert([nuevaEvaluacion])
-                    .select();
-                
-                if (evalError) {
-                    console.error("❌ Error creando evaluación:", evalError);
-                } else if (evalData) {
-                    if (!window.evaluaciones) window.evaluaciones = [];
-                    window.evaluaciones.push(evalData[0]);
-                    console.log("✅ Evaluación creada para el nuevo alumno");
-                }
-                
-                // Cerrar modal y actualizar vista
                 cerrarModalAlumno();
                 renderizarAlumnos();
                 window.mostrarNotificacion("✅ Alumno guardado correctamente", "success");
-                
             } catch (error) {
-                console.error("❌ Error inesperado:", error);
                 window.mostrarNotificacion("Error al guardar alumno", "error");
             }
         }
 
-        function editarAlumno(id) { 
-            abrirModalAlumno(id); 
-        }
-
+        function editarAlumno(id) { abrirModalAlumno(id); }
+        
         async function eliminarAlumno(id) { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             if (confirm("¿Eliminar este alumno? Se eliminarán también todas sus evaluaciones.")) { 
-                try {
-                    // Eliminar de Supabase
-                    const { error } = await supabase
-                        .from('alumnos')
-                        .delete()
-                        .eq('id', id);
-                    
-                    if (error) {
-                        console.error("❌ Error eliminando:", error);
-                        window.mostrarNotificacion("Error al eliminar alumno", "error");
-                        return;
-                    }
-                    
-                    // Eliminar del array local
-                    if (window.alumnos) window.alumnos = window.alumnos.filter(a => a.id !== id);
-                    if (window.evaluaciones) window.evaluaciones = window.evaluaciones.filter(e => e.alumno_id !== id);
-                    
-                    renderizarAlumnos();
-                    window.mostrarNotificacion("Alumno eliminado", "success");
-                } catch (error) {
-                    console.error("❌ Error:", error);
-                    window.mostrarNotificacion("Error al eliminar", "error");
-                }
+                await supabase.from('alumnos').delete().eq('id', id);
+                window.alumnos = window.alumnos.filter(a => a.id !== id);
+                window.evaluaciones = window.evaluaciones.filter(e => e.alumno_id !== id);
+                renderizarAlumnos();
+                window.mostrarNotificacion("Alumno eliminado", "success");
             } 
         }
-
         // ========== GRUPOS ==========
         function renderizarGrupos() {
             let tbody = document.getElementById("tabla-grupos");
@@ -463,33 +444,16 @@
         async function guardarGrupo() { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             let id = document.getElementById("grupo-id").value; 
-            let datos = { 
-                id: id || window.generarId(), 
-                grado: document.getElementById("grupo-grado").value, 
-                grupo: document.getElementById("grupo-nombre").value.toUpperCase() 
-            }; 
-            
-            const { data, error } = await supabase
-                .from('grupos')
-                .upsert([datos])
-                .select();
-                
-            if (error) {
-                window.mostrarNotificacion("Error al guardar grupo", "error");
-                return;
-            }
-            
+            let datos = { id: id || window.generarId(), grado: document.getElementById("grupo-grado").value, grupo: document.getElementById("grupo-nombre").value.toUpperCase() }; 
+            const { data, error } = await supabase.from('grupos').upsert([datos]).select();
+            if (error) { window.mostrarNotificacion("Error al guardar grupo", "error"); return; }
             if (data) {
                 const index = window.grupos.findIndex(g => g.id === data[0].id);
                 if (index !== -1) window.grupos[index] = data[0];
                 else window.grupos.push(data[0]);
             }
-            
-            cerrarModalGrupo(); 
-            renderizarGrupos(); 
-            window.mostrarNotificacion("Grupo guardado", "success"); 
+            cerrarModalGrupo(); renderizarGrupos(); window.mostrarNotificacion("Grupo guardado", "success"); 
         }
 
         function editarGrupo(id) { abrirModalGrupo(id); }
@@ -497,25 +461,13 @@
         async function eliminarGrupo(id) { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             if (window.alumnos?.some(a => a.grupo_id === id)) { 
-                window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); 
-                return; 
-            } 
+                window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); return; 
+            }
             if (confirm("¿Eliminar este grupo?")) { 
-                const { error } = await supabase
-                    .from('grupos')
-                    .delete()
-                    .eq('id', id);
-                    
-                if (error) {
-                    window.mostrarNotificacion("Error al eliminar grupo", "error");
-                    return;
-                }
-                
+                await supabase.from('grupos').delete().eq('id', id);
                 window.grupos = window.grupos.filter(g => g.id !== id);
-                renderizarGrupos(); 
-                window.mostrarNotificacion("Grupo eliminado", "success"); 
+                renderizarGrupos(); window.mostrarNotificacion("Grupo eliminado", "success"); 
             } 
         }
 
@@ -576,36 +528,20 @@
         async function guardarMaestra() { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             let id = document.getElementById("maestra-id").value; 
             let datos = { 
-                id: id || window.generarId(),
-                nombre: document.getElementById("maestra-nombre").value, 
-                rol: "maestra", 
-                grupo_id: document.getElementById("maestra-grupo").value || null, 
-                password: document.getElementById("maestra-password").value, 
-                email: document.getElementById("maestra-email").value 
+                id: id || window.generarId(), nombre: document.getElementById("maestra-nombre").value, 
+                rol: "maestra", grupo_id: document.getElementById("maestra-grupo").value || null, 
+                password: document.getElementById("maestra-password").value, email: document.getElementById("maestra-email").value 
             }; 
-            
-            const { data, error } = await supabase
-                .from('usuarios')
-                .upsert([datos])
-                .select();
-                
-            if (error) {
-                window.mostrarNotificacion("Error al guardar maestra", "error");
-                return;
-            }
-            
+            const { data, error } = await supabase.from('usuarios').upsert([datos]).select();
+            if (error) { window.mostrarNotificacion("Error al guardar maestra", "error"); return; }
             if (data) {
                 const index = window.usuarios.findIndex(u => u.id === data[0].id);
                 if (index !== -1) window.usuarios[index] = data[0];
                 else window.usuarios.push(data[0]);
             }
-            
-            cerrarModalMaestra(); 
-            renderizarMaestras(); 
-            window.mostrarNotificacion("Maestra guardada", "success"); 
+            cerrarModalMaestra(); renderizarMaestras(); window.mostrarNotificacion("Maestra guardada", "success"); 
         }
 
         function editarMaestra(id) { abrirModalMaestra(id); }
@@ -613,21 +549,10 @@
         async function eliminarMaestra(id) { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             if (confirm("¿Eliminar esta maestra?")) { 
-                const { error } = await supabase
-                    .from('usuarios')
-                    .delete()
-                    .eq('id', id);
-                    
-                if (error) {
-                    window.mostrarNotificacion("Error al eliminar maestra", "error");
-                    return;
-                }
-                
+                await supabase.from('usuarios').delete().eq('id', id);
                 window.usuarios = window.usuarios.filter(u => u.id !== id);
-                renderizarMaestras(); 
-                window.mostrarNotificacion("Maestra eliminada", "success"); 
+                renderizarMaestras(); window.mostrarNotificacion("Maestra eliminada", "success"); 
             } 
         }
 
@@ -644,28 +569,131 @@
         async function guardarNuevaPassword() { 
             const supabase = window.supabaseClient;
             if (!supabase) return;
-            
             let nueva = document.getElementById("nueva-password").value; 
             let confirmar = document.getElementById("confirmar-password").value; 
             if (nueva !== confirmar) { window.mostrarNotificacion("Las contraseñas no coinciden", "error"); return; } 
-            
-            let usuario = window.usuarios?.find(u => u.id === maestraIdParaPass);
-            if (usuario) { 
-                usuario.password = nueva; 
-                const { error } = await supabase
-                    .from('usuarios')
-                    .update({ password: nueva })
-                    .eq('id', maestraIdParaPass);
-                    
-                if (error) {
-                    window.mostrarNotificacion("Error al actualizar contraseña", "error");
-                    return;
-                }
-                
-                window.mostrarNotificacion("Contraseña actualizada", "success"); 
-            } 
+            await supabase.from('usuarios').update({ password: nueva }).eq('id', maestraIdParaPass);
+            window.mostrarNotificacion("Contraseña actualizada", "success"); 
             cerrarModalCambiarPass(); 
         }
+
+        // ========== CARGA MASIVA ==========
+        function limpiarAreaCarga() {
+            document.getElementById("datosMasivos").value = "";
+            document.getElementById("resultadoCarga").style.display = "none";
+        }
+
+        function descargarPlantilla() {
+            const plantilla = "Nombre\tCURP\tGrado\tGrupo\tTutor\tTeléfono\tEmail\n" +
+                "Sofía Martínez López\tMALS230105HDFRPR09\t1° Preescolar\tA\tMaría López\t5512345678\tmaria@email.com\n" +
+                "Mateo González Ruiz\tGORM220312HDFRPR02\t1° Preescolar\tA\tCarlos González\t5587654321\tcarlos@email.com";
+            const blob = new Blob([plantilla], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "plantilla_alumnos.csv";
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function parsearDatos(datosTexto, delimitador, saltarEncabezado) {
+            let lineas = datosTexto.split(/\r?\n/).filter(linea => linea.trim() !== "");
+            if (saltarEncabezado && lineas.length > 0) lineas = lineas.slice(1);
+            
+            let alumnos = [], errores = [];
+            for (let i = 0; i < lineas.length; i++) {
+                let columnas;
+                if (delimitador === "tab") columnas = lineas[i].split(/\t/);
+                else if (delimitador === "comma") columnas = lineas[i].split(",");
+                else columnas = lineas[i].split(";");
+                columnas = columnas.map(c => c.trim().replace(/^["']|["']$/g, ''));
+                
+                if (columnas.length < 5) {
+                    errores.push(`Línea ${i+1}: Faltan columnas (se encontraron ${columnas.length}, se necesitan mínimo 5)`);
+                    continue;
+                }
+                
+                const grupo = window.grupos?.find(g => g.grado === columnas[2] && g.grupo === columnas[3]?.toUpperCase());
+                alumnos.push({
+                    nombre: columnas[0], curp: columnas[1] || "", grado: columnas[2] || "1° Preescolar",
+                    grupo_id: grupo?.id || null, tutor: columnas[4] || "", telefono: columnas[5] || "", email: columnas[6] || ""
+                });
+            }
+            return { alumnos, errores };
+        }
+
+        async function procesarCargaMasiva() {
+            const datosTexto = document.getElementById("datosMasivos").value;
+            if (!datosTexto.trim()) { window.mostrarNotificacion("Pega los datos antes de cargar", "error"); return; }
+            
+            const delimitador = document.getElementById("delimitador").value;
+            const saltarEncabezado = document.getElementById("tieneEncabezado").value === "si";
+            const { alumnos, errores } = parsearDatos(datosTexto, delimitador, saltarEncabezado);
+            const resultadoDiv = document.getElementById("resultadoCarga");
+            
+            if (alumnos.length === 0) {
+                resultadoDiv.style.display = "block";
+                resultadoDiv.className = "error";
+                resultadoDiv.innerHTML = `<strong>❌ Error:</strong> No se pudieron procesar alumnos.<br><br>${errores.join("<br>")}`;
+                return;
+            }
+            
+            resultadoDiv.style.display = "block";
+            resultadoDiv.className = "alert-info";
+            resultadoDiv.innerHTML = `<strong>⏳ Procesando ${alumnos.length} alumnos...</strong>`;
+            
+            const supabase = window.supabaseClient;
+            if (!supabase) {
+                resultadoDiv.className = "error";
+                resultadoDiv.innerHTML = "<strong>❌ Error:</strong> No hay conexión con Supabase.";
+                return;
+            }
+            
+            let guardados = 0, erroresGuardado = [];
+            for (let i = 0; i < alumnos.length; i++) {
+                const alumno = alumnos[i];
+                const alumnoData = {
+                    id: window.generarId(), nombre: alumno.nombre, curp: alumno.curp,
+                    grado: alumno.grado, grupo_id: alumno.grupo_id, tutor: alumno.tutor,
+                    telefono: alumno.telefono, email: alumno.email
+                };
+                try {
+                    const { data, error } = await supabase.from('alumnos').upsert([alumnoData]).select();
+                    if (error) { erroresGuardado.push(`${alumno.nombre}: ${error.message}`); continue; }
+                    const alumnoGuardado = data[0];
+                    window.alumnos.push(alumnoGuardado);
+                    
+                    const nuevaEvaluacion = { id: window.generarId(), alumno_id: alumnoGuardado.id, periodos: {} };
+                    for (let p of window.periodos) {
+                        nuevaEvaluacion.periodos[p.clave] = { campos: {}, recomendaciones: "", firmada: false, firma: null, firmaNombre: null, fechaFirma: null, enviada: false, token: null };
+                        window.camposEvaluacion.forEach(c => { nuevaEvaluacion.periodos[p.clave].campos[c] = ""; });
+                    }
+                    await supabase.from('evaluaciones').insert([nuevaEvaluacion]);
+                    guardados++;
+                    if (guardados % 10 === 0 || guardados === alumnos.length) {
+                        resultadoDiv.innerHTML = `<strong>⏳ Procesando... ${guardados}/${alumnos.length} alumnos guardados</strong>`;
+                    }
+                } catch (error) { erroresGuardado.push(`${alumno.nombre}: Error inesperado`); }
+            }
+            
+            let resultadoHtml = `<strong>✅ Carga completada!</strong><br>📋 Alumnos guardados: ${guardados} de ${alumnos.length}<br>`;
+            if (errores.length > 0) resultadoHtml += `<br><strong>⚠️ Errores de formato (${errores.length}):</strong><br>${errores.join("<br>")}<br>`;
+            if (erroresGuardado.length > 0) resultadoHtml += `<br><strong>⚠️ Errores al guardar (${erroresGuardado.length}):</strong><br>${erroresGuardado.join("<br>")}<br>`;
+            resultadoDiv.className = guardados === alumnos.length ? "alert-success" : "alert-warning";
+            resultadoDiv.innerHTML = resultadoHtml;
+            renderizarAlumnos();
+            window.mostrarNotificacion(`✅ ${guardados} alumnos cargados correctamente`, "success");
+        }
+
+        document.getElementById("archivoExcel")?.addEventListener("change", function(e) {
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    document.getElementById("datosMasivos").value = ev.target.result;
+                    window.mostrarNotificacion("Archivo cargado correctamente", "success");
+                };
+                reader.readAsText(e.target.files[0]);
+            }
+        });
 
         // ========== BOLETAS ==========
         function cargarSelectAlumnos() { 
@@ -713,9 +741,7 @@
             verBoletaDirectora(id); 
         }
 
-        function verBoletaDirectora(id) { 
-            window.open(`boleta.html?alumno=${id}`, "_blank"); 
-        }
+        function verBoletaDirectora(id) { window.open(`boleta.html?alumno=${id}`, "_blank"); }
 
         function evaluarBoletaDirectora(id) { 
             let a = window.alumnos?.find(a => a.id === id); 
@@ -793,27 +819,22 @@
 
         // ========== INICIALIZACIÓN ==========
         function inicializar() {
-            // Esperar a que los datos estén cargados
             const intervalo = setInterval(() => {
                 if (window.alumnos && window.grupos && window.usuarios && window.supabaseClient) {
                     clearInterval(intervalo);
-                    renderizarAlumnos(); 
-                    renderizarGrupos(); 
-                    renderizarMaestras();
+                    renderizarAlumnos(); renderizarGrupos(); renderizarMaestras();
                     document.getElementById("config-nombre").value = window.configuracion?.nombre || ""; 
                     document.getElementById("config-clave").value = window.configuracion?.clave || ""; 
                     document.getElementById("config-ciclo").value = window.configuracion?.ciclo || ""; 
                     document.getElementById("config-director").value = window.configuracion?.director || ""; 
                     document.getElementById("config-logo").value = window.configuracion?.logo || ""; 
                     actualizarLogo();
-                    console.log("✅ Admin inicializado correctamente");
                 }
             }, 500);
         }
 
         inicializar();
         
-        // Exponer funciones globales
         window.cambiarSeccion = cambiarSeccion; 
         window.guardarConfiguracion = guardarConfiguracion; 
         window.abrirModalAlumno = abrirModalAlumno; 
@@ -832,6 +853,9 @@
         window.evaluarBoletaDirectora = evaluarBoletaDirectora;
         window.imprimirReporteGeneral = imprimirReporteGeneral; 
         window.imprimirReportePorGrupos = imprimirReportePorGrupos;
+        window.procesarCargaMasiva = procesarCargaMasiva;
+        window.limpiarAreaCarga = limpiarAreaCarga;
+        window.descargarPlantilla = descargarPlantilla;
     </script>
 </body>
 </html>
