@@ -1,4 +1,4 @@
-// config.js - Versión CORREGIDA (sin declaraciones duplicadas)
+// config.js - Configuración para GitHub Pages + Supabase
 
 // CONFIGURACIÓN DE SUPABASE
 const SUPABASE_URL = 'https://eowjlgvigsdooflqepxq.supabase.co';
@@ -265,7 +265,7 @@ async function actualizarConfiguracion(config) {
     return config;
 }
 
-// Exportar al objeto window (sin sobrescribir)
+// Exportar al objeto window
 window.supabaseClient = supabaseClient;
 window.configuracion = configuracion;
 window.grupos = grupos;
@@ -305,6 +305,7 @@ window.cargarDatos = cargarDatos;
     window.alumnos = alumnos;
     window.usuarios = usuarios;
     window.evaluaciones = evaluaciones;
+    window.supabaseClient = supabaseClient;
     
     console.log("✅ Config.js listo. Grupos:", grupos.length, "Alumnos:", alumnos.length, "Usuarios:", usuarios.length);
 })();
