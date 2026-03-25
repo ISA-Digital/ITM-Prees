@@ -69,7 +69,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>CURP</th><th>Grado</th><th>Grupo</th><th>Tutor</th><th>Teléfono</th><th>Acciones</th> </thead>
                         <tbody id="tabla-alumnos"></tbody>
-                      </table>
+                     </table>
                 </div>
             </div>
         </div>
@@ -85,7 +85,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Grado</th><th>Grupo</th><th>Alumnos</th><th>Acciones</th> </thead>
                         <tbody id="tabla-grupos"></tbody>
-                      </table>
+                     </table>
                 </div>
             </div>
         </div>
@@ -101,7 +101,7 @@
                     <table style="width:100%; border-collapse:collapse;">
                         <thead><tr style="background:#f5f5f5;"><th>Nombre</th><th>Grupo</th><th>Email</th><th>Contraseña</th><th>Acciones</th> </thead>
                         <tbody id="tabla-maestras"></tbody>
-                      </table>
+                     </table>
                 </div>
             </div>
         </div>
@@ -172,23 +172,8 @@
 
     <script>
         let maestraIdParaPass = null;
-        let supabase = null;
 
         // ========== FUNCIONES AUXILIARES ==========
-        function obtenerSupabase() {
-            if (supabase) return supabase;
-            if (window.supabaseClient) {
-                supabase = window.supabaseClient;
-                return supabase;
-            }
-            // Intentar crear el cliente manualmente como último recurso
-            const SUPABASE_URL = 'https://eowjlgvigsdooflqepxq.supabase.co';
-            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvd2psZ3ZpZ3Nkb29mbHFlcHhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDI3OTMsImV4cCI6MjA4OTg3ODc5M30.-4Oi4Kyec0U4aPtpM3TbKLqLK8qEJT_pNw5Z_jmuNJ8';
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log("🟡 Supabase creado manualmente");
-            return supabase;
-        }
-        
         function actualizarLogo() { 
             let img = document.getElementById("header-logo"); 
             if (window.configuracion?.logo && window.configuracion.logo !== "") { 
@@ -288,8 +273,8 @@
 
         async function guardarAlumno() { 
             // Obtener cliente de Supabase
-            const supabaseClient = obtenerSupabase();
-            if (!supabaseClient) {
+            const supabase = window.supabaseClient;
+            if (!supabase) {
                 window.mostrarNotificacion("Error de conexión. Recarga la página.", "error");
                 return;
             }
@@ -326,7 +311,7 @@
             
             try {
                 // Guardar alumno en Supabase
-                const { data, error } = await supabaseClient
+                const { data, error } = await supabase
                     .from('alumnos')
                     .upsert([alumnoData])
                     .select();
@@ -375,7 +360,7 @@
                 }
                 
                 // Guardar evaluación en Supabase
-                const { data: evalData, error: evalError } = await supabaseClient
+                const { data: evalData, error: evalError } = await supabase
                     .from('evaluaciones')
                     .insert([nuevaEvaluacion])
                     .select();
@@ -404,13 +389,13 @@
         }
 
         async function eliminarAlumno(id) { 
-            const supabaseClient = obtenerSupabase();
-            if (!supabaseClient) return;
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
             
             if (confirm("¿Eliminar este alumno? Se eliminarán también todas sus evaluaciones.")) { 
                 try {
                     // Eliminar de Supabase
-                    const { error } = await supabaseClient
+                    const { error } = await supabase
                         .from('alumnos')
                         .delete()
                         .eq('id', id);
@@ -476,8 +461,8 @@
         function cerrarModalGrupo() { document.getElementById("modal-grupo").classList.remove("active"); }
 
         async function guardarGrupo() { 
-            const supabaseClient = obtenerSupabase();
-            if (!supabaseClient) return;
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
             
             let id = document.getElementById("grupo-id").value; 
             let datos = { 
@@ -485,7 +470,23 @@
                 grado: document.getElementById("grupo-grado").value, 
                 grupo: document.getElementById("grupo-nombre").value.toUpperCase() 
             }; 
-            await window.guardarGrupo(datos);
+            
+            const { data, error } = await supabase
+                .from('grupos')
+                .upsert([datos])
+                .select();
+                
+            if (error) {
+                window.mostrarNotificacion("Error al guardar grupo", "error");
+                return;
+            }
+            
+            if (data) {
+                const index = window.grupos.findIndex(g => g.id === data[0].id);
+                if (index !== -1) window.grupos[index] = data[0];
+                else window.grupos.push(data[0]);
+            }
+            
             cerrarModalGrupo(); 
             renderizarGrupos(); 
             window.mostrarNotificacion("Grupo guardado", "success"); 
@@ -494,12 +495,25 @@
         function editarGrupo(id) { abrirModalGrupo(id); }
         
         async function eliminarGrupo(id) { 
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
+            
             if (window.alumnos?.some(a => a.grupo_id === id)) { 
                 window.mostrarNotificacion("No se puede eliminar: el grupo tiene alumnos", "error"); 
                 return; 
             } 
             if (confirm("¿Eliminar este grupo?")) { 
-                await window.eliminarGrupo(id); 
+                const { error } = await supabase
+                    .from('grupos')
+                    .delete()
+                    .eq('id', id);
+                    
+                if (error) {
+                    window.mostrarNotificacion("Error al eliminar grupo", "error");
+                    return;
+                }
+                
+                window.grupos = window.grupos.filter(g => g.id !== id);
                 renderizarGrupos(); 
                 window.mostrarNotificacion("Grupo eliminado", "success"); 
             } 
@@ -560,8 +574,8 @@
         function cerrarModalMaestra() { document.getElementById("modal-maestra").classList.remove("active"); }
 
         async function guardarMaestra() { 
-            const supabaseClient = obtenerSupabase();
-            if (!supabaseClient) return;
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
             
             let id = document.getElementById("maestra-id").value; 
             let datos = { 
@@ -572,7 +586,23 @@
                 password: document.getElementById("maestra-password").value, 
                 email: document.getElementById("maestra-email").value 
             }; 
-            await window.guardarUsuario(datos);
+            
+            const { data, error } = await supabase
+                .from('usuarios')
+                .upsert([datos])
+                .select();
+                
+            if (error) {
+                window.mostrarNotificacion("Error al guardar maestra", "error");
+                return;
+            }
+            
+            if (data) {
+                const index = window.usuarios.findIndex(u => u.id === data[0].id);
+                if (index !== -1) window.usuarios[index] = data[0];
+                else window.usuarios.push(data[0]);
+            }
+            
             cerrarModalMaestra(); 
             renderizarMaestras(); 
             window.mostrarNotificacion("Maestra guardada", "success"); 
@@ -581,8 +611,21 @@
         function editarMaestra(id) { abrirModalMaestra(id); }
         
         async function eliminarMaestra(id) { 
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
+            
             if (confirm("¿Eliminar esta maestra?")) { 
-                await window.eliminarUsuario(id); 
+                const { error } = await supabase
+                    .from('usuarios')
+                    .delete()
+                    .eq('id', id);
+                    
+                if (error) {
+                    window.mostrarNotificacion("Error al eliminar maestra", "error");
+                    return;
+                }
+                
+                window.usuarios = window.usuarios.filter(u => u.id !== id);
                 renderizarMaestras(); 
                 window.mostrarNotificacion("Maestra eliminada", "success"); 
             } 
@@ -599,16 +642,26 @@
         function cerrarModalCambiarPass() { document.getElementById("modal-cambiar-pass").classList.remove("active"); }
 
         async function guardarNuevaPassword() { 
-            const supabaseClient = obtenerSupabase();
-            if (!supabaseClient) return;
+            const supabase = window.supabaseClient;
+            if (!supabase) return;
             
             let nueva = document.getElementById("nueva-password").value; 
             let confirmar = document.getElementById("confirmar-password").value; 
             if (nueva !== confirmar) { window.mostrarNotificacion("Las contraseñas no coinciden", "error"); return; } 
-            let index = window.usuarios?.findIndex(u => u.id === maestraIdParaPass); 
-            if (index !== -1) { 
-                window.usuarios[index].password = nueva; 
-                await window.guardarUsuario(window.usuarios[index]); 
+            
+            let usuario = window.usuarios?.find(u => u.id === maestraIdParaPass);
+            if (usuario) { 
+                usuario.password = nueva; 
+                const { error } = await supabase
+                    .from('usuarios')
+                    .update({ password: nueva })
+                    .eq('id', maestraIdParaPass);
+                    
+                if (error) {
+                    window.mostrarNotificacion("Error al actualizar contraseña", "error");
+                    return;
+                }
+                
                 window.mostrarNotificacion("Contraseña actualizada", "success"); 
             } 
             cerrarModalCambiarPass(); 
@@ -695,10 +748,10 @@
             if (window.grupos) {
                 window.grupos.forEach(g => { 
                     let ag = window.alumnos?.filter(a => a.grupo_id === g.id) || []; 
-                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead> <tr><th>Alumno</th><th>Tutor</th><th>NOV</th><th>MAR</th><th>JUL</th></tr> </thead><tbody>`; 
+                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><thead><tr><th>Alumno</th><th>Tutor</th><th>NOV</th><th>MAR</th><th>JUL</th></tr></thead><tbody>`; 
                     ag.forEach(a => { 
                         let e = window.evaluaciones?.find(ev => ev.alumno_id === a.id); 
-                        html += ` <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.marzo?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.julio?.firmada ? "✅" : "⬜"}</td></tr>`; 
+                        html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.marzo?.firmada ? "✅" : "⬜"}</td><td>${e?.periodos?.julio?.firmada ? "✅" : "⬜"}</td></tr>`; 
                     }); 
                     html += `</tbody></table><br>`; 
                 }); 
@@ -713,10 +766,10 @@
             if (window.grupos) {
                 window.grupos.forEach(g => { 
                     let ag = window.alumnos?.filter(a => a.grupo_id === g.id) || []; 
-                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"> <thead> <tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th></tr> </thead><tbody>`; 
+                    html += `<h3>${g.grado} - Grupo ${g.grupo}</h3><table border="1" cellpadding="5"><thead><tr><th>Alumno</th><th>Tutor</th><th>NOVIEMBRE</th><th>MARZO</th><th>JULIO</th></tr></thead><tbody>`; 
                     ag.forEach(a => { 
                         let e = window.evaluaciones?.find(ev => ev.alumno_id === a.id); 
-                        html += ` <tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
+                        html += `<tr><td>${a.nombre}</td><td>${a.tutor}</td><td>${e?.periodos?.noviembre?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.marzo?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td><td>${e?.periodos?.julio?.firmada ? "✅ Firmada" : "📝 Pendiente"}</td></tr>`; 
                     }); 
                     html += `</tbody></table><br>`; 
                 }); 
@@ -726,7 +779,7 @@
         }
 
         // ========== CAMBIAR SECCIÓN ==========
-        async function cambiarSeccion(s) { 
+        function cambiarSeccion(s) { 
             document.querySelectorAll('.seccion').forEach(el => el.classList.remove('active')); 
             document.getElementById(`seccion-${s}`).classList.add('active'); 
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); 
@@ -739,29 +792,23 @@
         }
 
         // ========== INICIALIZACIÓN ==========
-        async function inicializar() {
+        function inicializar() {
             // Esperar a que los datos estén cargados
-            const esperarDatos = () => new Promise(resolve => {
-                const intervalo = setInterval(() => {
-                    if (window.alumnos && window.grupos && window.usuarios) {
-                        clearInterval(intervalo);
-                        resolve();
-                    }
-                }, 200);
-                setTimeout(() => clearInterval(intervalo), 10000);
-            });
-            
-            await esperarDatos();
-            
-            renderizarAlumnos(); 
-            renderizarGrupos(); 
-            renderizarMaestras();
-            document.getElementById("config-nombre").value = window.configuracion?.nombre || ""; 
-            document.getElementById("config-clave").value = window.configuracion?.clave || ""; 
-            document.getElementById("config-ciclo").value = window.configuracion?.ciclo || ""; 
-            document.getElementById("config-director").value = window.configuracion?.director || ""; 
-            document.getElementById("config-logo").value = window.configuracion?.logo || ""; 
-            actualizarLogo();
+            const intervalo = setInterval(() => {
+                if (window.alumnos && window.grupos && window.usuarios && window.supabaseClient) {
+                    clearInterval(intervalo);
+                    renderizarAlumnos(); 
+                    renderizarGrupos(); 
+                    renderizarMaestras();
+                    document.getElementById("config-nombre").value = window.configuracion?.nombre || ""; 
+                    document.getElementById("config-clave").value = window.configuracion?.clave || ""; 
+                    document.getElementById("config-ciclo").value = window.configuracion?.ciclo || ""; 
+                    document.getElementById("config-director").value = window.configuracion?.director || ""; 
+                    document.getElementById("config-logo").value = window.configuracion?.logo || ""; 
+                    actualizarLogo();
+                    console.log("✅ Admin inicializado correctamente");
+                }
+            }, 500);
         }
 
         inicializar();
